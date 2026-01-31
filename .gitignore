@@ -1,0 +1,53 @@
+# Fichiers d'environnement
+.env
+.env.local
+.env.*.local
+
+# Environnements virtuels Python
+venv/
+env/
+ENV/
+bot/venv/
+bot/env/
+bot/Scripts/
+bot/Lib/
+bot/Include/
+bot/pyvenv.cfg
+bot/share/
+
+# Fichiers Python
+*.py[cod]
+*$py.class
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+
+# Fichiers temporaires générés par le bot
+*.mp4
+*.webm
+*.srt
+*.mkv
+*.avi
+*.mov
+*.flv
+clip_*.mp4
+video_*.mp4
+temp_*.mp4
+clean_*.srt
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.sqlite
