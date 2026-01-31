@@ -51,3 +51,7 @@ clean_*.srt
 *.log
 logs/
 *.sqlite
+
+# Dossiers personnalisés
+mk/
+
