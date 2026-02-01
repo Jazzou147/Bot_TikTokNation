@@ -1,9 +1,9 @@
 FROM python:3.11-slim
 
-# Installer ffmpeg (non-interactif, sans recommandations pour réduire la taille)
-ENV DEBIAN_FRONTEND=noninteractive
+# Installer ffmpeg et ffprobe
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg ca-certificates && \
+    apt-get install -y ffmpeg && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Définir le répertoire de travail
