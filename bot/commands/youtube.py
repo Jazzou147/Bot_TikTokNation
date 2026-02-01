@@ -7,6 +7,7 @@ import os
 import time
 import subprocess
 import aiohttp
+import json
 
 # Vérifier et mettre à jour yt-dlp si nécessaire
 try:
@@ -39,6 +40,38 @@ class TikTokify(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.semaphore = asyncio.Semaphore(2)
+        # Détection d'un fichier de cookies pour yt-dlp
+        self.COOKIEFILE = None
+        env_cookie = os.environ.get("YTDLP_COOKIES")
+        if env_cookie and os.path.exists(env_cookie):
+            self.COOKIEFILE = env_cookie
+        # checker config.json dans bot/config
+        if not self.COOKIEFILE:
+            try:
+                cfg_path = os.path.join(os.path.dirname(__file__), "..", "config", "config.json")
+                cfg_path = os.path.normpath(cfg_path)
+                if os.path.exists(cfg_path):
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                    cf = cfg.get("ytdlp_cookies")
+                    if cf and os.path.exists(cf):
+                        self.COOKIEFILE = cf
+            except Exception:
+                pass
+        # chemins par défaut
+        if not self.COOKIEFILE:
+            pr = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            defaults = [
+                os.path.join(pr, "cookies.txt"),
+                os.path.join(pr, "bot", "cookies.txt"),
+                os.path.join(pr, "bot", "config", "cookies.txt"),
+            ]
+            for p in defaults:
+                if os.path.exists(p):
+                    self.COOKIEFILE = p
+                    break
+        if self.COOKIEFILE:
+            print(f"yt-dlp cookiefile detected: {self.COOKIEFILE}")
 
     async def safe_edit_message(self, message, content, channel):
         """Édite un message de manière sécurisée, envoie dans le canal si le token expire"""
@@ -164,10 +197,32 @@ class TikTokify(commands.Cog):
                     "skip_unavailable_fragments": True,
                 }
 
+                # Injecter cookiefile si détecté
+                if getattr(self, "COOKIEFILE", None):
+                    ydl_opts["cookiefile"] = self.COOKIEFILE
+
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     try:
                         await asyncio.to_thread(ydl.download, [video_url])
                     except Exception as e:
+                        err_text = str(e).lower()
+                        # Erreur connue de YouTube demandant une authentification/cookies
+                        if (
+                            "sign in to confirm" in err_text
+                            or "sign in to confirm you\'re not a bot" in err_text
+                            or "cookies" in err_text
+                        ):
+                            guidance = (
+                                "❌ YouTube bloque le téléchargement.\n"
+                                "Exportez vos cookies YouTube et placez-les dans un fichier `cookies.txt` à la racine du projet, "
+                                "ou définissez la variable d'environnement `YTDLP_COOKIES` pointant vers ce fichier.\n"
+                                "Guide: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp"
+                            )
+                            try:
+                                await self.safe_edit_message(initial_message, guidance, interaction.channel)
+                            except Exception:
+                                pass
+                            return
                         # Si le téléchargement avec le format spécifique échoue, essayer un format plus simple
                         if (
                             "format" in str(e).lower()
