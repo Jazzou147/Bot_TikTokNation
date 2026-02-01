@@ -7,7 +7,6 @@ import os
 import time
 import subprocess
 import aiohttp
-import shutil
 
 # Vérifier et mettre à jour yt-dlp si nécessaire
 try:
@@ -40,32 +39,6 @@ class TikTokify(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.semaphore = asyncio.Semaphore(2)
-
-        # Détecter ffmpeg/ffprobe fournis dans le dossier utils (fallback sur PATH)
-        project_root = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..")
-        )
-        ffmpeg_dir = os.path.join(
-            project_root,
-            "utils",
-            "ffmpeg-2025-09-08-git-45db6945e9-full_build",
-            "bin",
-        )
-        ffmpeg_candidate = os.path.join(
-            ffmpeg_dir, "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-        )
-        ffprobe_candidate = os.path.join(
-            ffmpeg_dir, "ffprobe.exe" if os.name == "nt" else "ffprobe"
-        )
-
-        self.FFMPEG_BIN = (
-            ffmpeg_candidate if os.path.exists(ffmpeg_candidate) else shutil.which("ffmpeg") or "ffmpeg"
-        )
-        self.FFPROBE_BIN = (
-            ffprobe_candidate if os.path.exists(ffprobe_candidate) else shutil.which("ffprobe") or "ffprobe"
-        )
-
-        print(f"Using ffmpeg: {self.FFMPEG_BIN}, ffprobe: {self.FFPROBE_BIN}")
 
     async def safe_edit_message(self, message, content, channel):
         """Édite un message de manière sécurisée, envoie dans le canal si le token expire"""
@@ -343,7 +316,7 @@ class TikTokify(commands.Cog):
 
                 # Analyser la durée de la vidéo
                 ffprobe_cmd = [
-                    self.FFPROBE_BIN,
+                    "ffprobe",
                     "-v",
                     "error",
                     "-show_entries",
@@ -422,7 +395,7 @@ class TikTokify(commands.Cog):
                     if subtitle_file and sous_titres:
                         # Utiliser le fichier SRT nettoyé avec pysrt
                         ffmpeg_cmd = [
-                            self.FFMPEG_BIN,
+                            "ffmpeg",
                             "-y",
                             "-i",
                             input_filename,
@@ -460,7 +433,7 @@ class TikTokify(commands.Cog):
                     else:
                         # Sans sous-titres - version propre
                         ffmpeg_cmd = [
-                            self.FFMPEG_BIN,
+                            "ffmpeg",
                             "-y",
                             "-i",
                             input_filename,
@@ -521,7 +494,7 @@ class TikTokify(commands.Cog):
 
                         # Vérifier la durée réelle du clip
                         duration_cmd = [
-                            self.FFPROBE_BIN,
+                            "ffprobe",
                             "-v",
                             "error",
                             "-show_entries",
@@ -575,7 +548,7 @@ class TikTokify(commands.Cog):
                                 )
 
                             reduced_cmd = [
-                                self.FFMPEG_BIN,
+                                "ffmpeg",
                                 "-y",
                                 "-i",
                                 output_filename,
