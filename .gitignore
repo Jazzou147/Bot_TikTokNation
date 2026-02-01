@@ -54,4 +54,9 @@ logs/
 
 # Dossiers personnalisés
 mk/
+# Exclure les binaires ffmpeg lourds inclus par erreur
+bot/utils/ffmpeg-2025-09-08-git-45db6945e9-full_build/
+bot/utils/**/bin/ffmpeg*
+bot/utils/**/bin/ffprobe*
+bot/utils/**/bin/ffplay*
 
