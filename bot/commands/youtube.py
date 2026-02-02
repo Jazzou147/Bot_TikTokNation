@@ -21,39 +21,16 @@ else:
     print(f"✅ ffprobe trouvé: {FFPROBE_PATH}")
 
 def get_browser_for_cookies():
-    """Détecte le navigateur disponible pour extraire les cookies."""
+    """Détecte le navigateur disponible pour extraire les cookies (rapide, sans test réseau)."""
     import platform
     
     # Sur Linux (Docker), l'extraction automatique ne fonctionne pas
     if platform.system() == 'Linux':
-        print("ℹ️  Environnement Linux détecté - auto-extraction de cookies désactivée")
-        print("   Utilisez un fichier de cookies exporté (voir YOUTUBE_COOKIES.md)")
         return None
     
-    # Sur Windows/Mac, essayer de détecter les navigateurs
-    # Firefox est plus fiable sur Windows (pas de problème DPAPI)
-    browsers = ['firefox', 'chrome', 'edge', 'brave', 'opera', 'safari']
-    for browser in browsers:
-        try:
-            # Test simple sans connexion réseau
-            test_opts = {
-                'cookiesfrombrowser': (browser,),
-                'quiet': True,
-                'no_warnings': True,
-            }
-            # Juste tester si le navigateur existe, pas de connexion
-            with yt_dlp.YoutubeDL(test_opts) as ydl:
-                print(f"✅ Navigateur détecté pour cookies: {browser}")
-                return browser
-        except Exception as e:
-            error_msg = str(e).lower()
-            # Ignorer les erreurs connues
-            if 'unsupported platform' in error_msg or 'failed to load' in error_msg:
-                continue
-    
-    print("⚠️  Aucun navigateur détecté pour l'extraction automatique des cookies")
-    print("   Sur Docker/Linux, utilisez un fichier de cookies exporté")
-    return None
+    # Sur Windows/Mac, retourner Firefox par défaut (le plus fiable)
+    # L'utilisateur peut toujours configurer preferred_browser dans config.json
+    return 'firefox'
 
 def load_youtube_config():
     """Charge la configuration YouTube depuis config.json."""
@@ -104,6 +81,9 @@ class TikTokify(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.semaphore = asyncio.Semaphore(2)
+        # Cache pour la détection du navigateur (fait une seule fois)
+        self._detected_browser = None
+        self._browser_detection_done = False
 
     async def safe_edit_message(self, message, content, channel):
         """Édite un message de manière sécurisée, envoie dans le canal si le token expire"""
@@ -237,14 +217,16 @@ class TikTokify(commands.Cog):
                     print(f"🍪 Utilisation des cookies du navigateur: {PREFERRED_BROWSER}")
                     ydl_opts["cookiesfrombrowser"] = (PREFERRED_BROWSER,)
                 else:
-                    # Détecter dynamiquement au moment du téléchargement
-                    detected_browser = get_browser_for_cookies()
-                    if detected_browser:
-                        print(f"🍪 Utilisation des cookies du navigateur: {detected_browser}")
-                        ydl_opts["cookiesfrombrowser"] = (detected_browser,)
+                    # Détecter une seule fois (mis en cache)
+                    if not self._browser_detection_done:
+                        self._detected_browser = await asyncio.to_thread(get_browser_for_cookies)
+                        self._browser_detection_done = True
+                    
+                    if self._detected_browser:
+                        print(f"🍪 Utilisation des cookies du navigateur: {self._detected_browser}")
+                        ydl_opts["cookiesfrombrowser"] = (self._detected_browser,)
                     else:
                         print("ℹ️  Aucun cookie d'authentification configuré")
-                        print("   En cas d'erreur, consultez YOUTUBE_COOKIES.md")
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     try:
