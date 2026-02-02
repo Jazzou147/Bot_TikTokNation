@@ -22,36 +22,37 @@ else:
 
 def get_browser_for_cookies():
     """Détecte le navigateur disponible pour extraire les cookies."""
+    import platform
+    
+    # Sur Linux (Docker), l'extraction automatique ne fonctionne pas
+    if platform.system() == 'Linux':
+        print("ℹ️  Environnement Linux détecté - auto-extraction de cookies désactivée")
+        print("   Utilisez un fichier de cookies exporté (voir YOUTUBE_COOKIES.md)")
+        return None
+    
+    # Sur Windows/Mac, essayer de détecter les navigateurs
     # Firefox est plus fiable sur Windows (pas de problème DPAPI)
     browsers = ['firefox', 'chrome', 'edge', 'brave', 'opera', 'safari']
     for browser in browsers:
         try:
-            # Test si le navigateur est accessible
+            # Test simple sans connexion réseau
             test_opts = {
                 'cookiesfrombrowser': (browser,),
                 'quiet': True,
                 'no_warnings': True,
-                'extract_flat': True,  # Ne télécharge rien, juste un test
             }
+            # Juste tester si le navigateur existe, pas de connexion
             with yt_dlp.YoutubeDL(test_opts) as ydl:
-                # Petit test pour s'assurer que le déchiffrement fonctionne
-                try:
-                    ydl.extract_info("https://www.youtube.com/watch?v=dQw4w9WgXcQ", download=False)
-                    print(f"✅ Navigateur détecté pour cookies: {browser}")
-                    return browser
-                except Exception as e:
-                    error_msg = str(e).lower()
-                    # Ignorer les erreurs de décryptage DPAPI et continuer
-                    if 'dpapi' in error_msg or 'decrypt' in error_msg:
-                        print(f"⚠️  {browser}: Erreur de décryptage, essai suivant...")
-                        continue
-                    # Si c'est une autre erreur mais que les cookies fonctionnent
-                    elif 'sign in' not in error_msg and 'bot' not in error_msg:
-                        print(f"✅ Navigateur détecté pour cookies: {browser}")
-                        return browser
+                print(f"✅ Navigateur détecté pour cookies: {browser}")
+                return browser
         except Exception as e:
-            continue
-    print("⚠️ Aucun navigateur détecté pour l'extraction automatique des cookies")
+            error_msg = str(e).lower()
+            # Ignorer les erreurs connues
+            if 'unsupported platform' in error_msg or 'failed to load' in error_msg:
+                continue
+    
+    print("⚠️  Aucun navigateur détecté pour l'extraction automatique des cookies")
+    print("   Sur Docker/Linux, utilisez un fichier de cookies exporté")
     return None
 
 def load_youtube_config():
@@ -69,7 +70,8 @@ def load_youtube_config():
 YOUTUBE_CONFIG = load_youtube_config()
 COOKIES_FILE = YOUTUBE_CONFIG.get('cookies_file')
 PREFERRED_BROWSER = YOUTUBE_CONFIG.get('preferred_browser')
-AUTO_BROWSER = get_browser_for_cookies() if not COOKIES_FILE else None
+# Ne pas auto-détecter au démarrage pour éviter les erreurs sur Docker/Linux
+AUTO_BROWSER = None
 
 # Vérifier et mettre à jour yt-dlp si nécessaire
 try:
@@ -234,9 +236,15 @@ class TikTokify(commands.Cog):
                 elif PREFERRED_BROWSER:
                     print(f"🍪 Utilisation des cookies du navigateur: {PREFERRED_BROWSER}")
                     ydl_opts["cookiesfrombrowser"] = (PREFERRED_BROWSER,)
-                elif AUTO_BROWSER:
-                    print(f"🍪 Utilisation des cookies du navigateur: {AUTO_BROWSER}")
-                    ydl_opts["cookiesfrombrowser"] = (AUTO_BROWSER,)
+                else:
+                    # Détecter dynamiquement au moment du téléchargement
+                    detected_browser = get_browser_for_cookies()
+                    if detected_browser:
+                        print(f"🍪 Utilisation des cookies du navigateur: {detected_browser}")
+                        ydl_opts["cookiesfrombrowser"] = (detected_browser,)
+                    else:
+                        print("ℹ️  Aucun cookie d'authentification configuré")
+                        print("   En cas d'erreur, consultez YOUTUBE_COOKIES.md")
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     try:
