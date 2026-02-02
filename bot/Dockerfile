@@ -1,27 +1,22 @@
 FROM python:3.11-slim
 
-# Installer dépendances système et ffmpeg
+# Installer ffmpeg et ffprobe
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get install -y ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Créer un utilisateur non-root pour la sécurité
-RUN useradd --create-home --shell /bin/bash botuser
+# Définir le répertoire de travail
 WORKDIR /app
-USER botuser
 
-# Copier et installer les dépendances Python
-COPY --chown=botuser:botuser requirements.txt /app/requirements.txt
-RUN python -m pip install --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.txt
+# Copier les fichiers requirements
+COPY requirements.txt .
 
-# Copier le code
-COPY --chown=botuser:botuser . /app
+# Installer les dépendances Python
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Variables utiles
-ENV PYTHONUNBUFFERED=1
-ENV FFMPEG_PATH=/usr/bin/ffmpeg
-ENV FFPROBE_PATH=/usr/bin/ffprobe
+# Copier le reste du code
+COPY . .
 
-# Commande de démarrage (adaptez main.py si nécessaire)
+# Lancer le bot
 CMD ["python", "main.py"]
