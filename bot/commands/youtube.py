@@ -8,6 +8,7 @@ import time
 import subprocess
 import aiohttp
 import shutil
+import json
 
 FFMPEG_PATH = os.environ.get("FFMPEG_PATH") or shutil.which("ffmpeg") 
 FFPROBE_PATH = os.environ.get("FFPROBE_PATH") or shutil.which("ffprobe") 
@@ -18,6 +19,57 @@ if not FFMPEG_PATH or not FFPROBE_PATH:
 else: 
     print(f"✅ ffmpeg trouvé: {FFMPEG_PATH}") 
     print(f"✅ ffprobe trouvé: {FFPROBE_PATH}")
+
+def get_browser_for_cookies():
+    """Détecte le navigateur disponible pour extraire les cookies."""
+    # Firefox est plus fiable sur Windows (pas de problème DPAPI)
+    browsers = ['firefox', 'chrome', 'edge', 'brave', 'opera', 'safari']
+    for browser in browsers:
+        try:
+            # Test si le navigateur est accessible
+            test_opts = {
+                'cookiesfrombrowser': (browser,),
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': True,  # Ne télécharge rien, juste un test
+            }
+            with yt_dlp.YoutubeDL(test_opts) as ydl:
+                # Petit test pour s'assurer que le déchiffrement fonctionne
+                try:
+                    ydl.extract_info("https://www.youtube.com/watch?v=dQw4w9WgXcQ", download=False)
+                    print(f"✅ Navigateur détecté pour cookies: {browser}")
+                    return browser
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    # Ignorer les erreurs de décryptage DPAPI et continuer
+                    if 'dpapi' in error_msg or 'decrypt' in error_msg:
+                        print(f"⚠️  {browser}: Erreur de décryptage, essai suivant...")
+                        continue
+                    # Si c'est une autre erreur mais que les cookies fonctionnent
+                    elif 'sign in' not in error_msg and 'bot' not in error_msg:
+                        print(f"✅ Navigateur détecté pour cookies: {browser}")
+                        return browser
+        except Exception as e:
+            continue
+    print("⚠️ Aucun navigateur détecté pour l'extraction automatique des cookies")
+    return None
+
+def load_youtube_config():
+    """Charge la configuration YouTube depuis config.json."""
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            return config.get('youtube', {})
+    except Exception as e:
+        print(f"⚠️ Impossible de charger la config YouTube: {e}")
+        return {}
+
+# Charger la config YouTube
+YOUTUBE_CONFIG = load_youtube_config()
+COOKIES_FILE = YOUTUBE_CONFIG.get('cookies_file')
+PREFERRED_BROWSER = YOUTUBE_CONFIG.get('preferred_browser')
+AUTO_BROWSER = get_browser_for_cookies() if not COOKIES_FILE else None
 
 # Vérifier et mettre à jour yt-dlp si nécessaire
 try:
@@ -174,6 +226,17 @@ class TikTokify(commands.Cog):
                     "fragment_retries": 10,
                     "skip_unavailable_fragments": True,
                 }
+                
+                # Ajouter l'authentification par cookies pour contourner la protection anti-bot
+                if COOKIES_FILE and os.path.exists(COOKIES_FILE):
+                    print(f"🍪 Utilisation du fichier cookies: {COOKIES_FILE}")
+                    ydl_opts["cookiefile"] = COOKIES_FILE
+                elif PREFERRED_BROWSER:
+                    print(f"🍪 Utilisation des cookies du navigateur: {PREFERRED_BROWSER}")
+                    ydl_opts["cookiesfrombrowser"] = (PREFERRED_BROWSER,)
+                elif AUTO_BROWSER:
+                    print(f"🍪 Utilisation des cookies du navigateur: {AUTO_BROWSER}")
+                    ydl_opts["cookiesfrombrowser"] = (AUTO_BROWSER,)
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     try:

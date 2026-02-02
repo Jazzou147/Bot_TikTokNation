@@ -52,6 +52,11 @@ clean_*.srt
 logs/
 *.sqlite
 
+# Cookies YouTube (informations sensibles)
+*_cookies.txt
+bot/config/*_cookies.txt
+youtube_cookies.txt
+
 # Dossiers personnalisés
 mk/
 # Exclure les binaires ffmpeg lourds inclus par erreur
