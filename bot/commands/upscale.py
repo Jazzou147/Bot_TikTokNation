@@ -5,7 +5,17 @@ from discord import app_commands
 from PIL import Image
 import asyncio
 from pathlib import Path
-import subprocess  
+import subprocess
+import sys
+import logging
+
+# Configurer le logging pour Render
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 # Augmenter la limite de taille d'image pour Pillow
 Image.MAX_IMAGE_PIXELS = None
@@ -34,17 +44,17 @@ class Upscale(commands.Cog):
             output_path = f"output_{interaction.id}.png"
             
             try:
-                print(f"[UPSCALE] Début du traitement pour l'interaction {interaction.id}")
+                logger.info(f"[UPSCALE] Début du traitement pour l'interaction {interaction.id}")
                 await interaction.edit_original_response(content="🔄 Téléchargement de l'image... 10%")
                 await image.save(Path(input_path))
-                print(f"[UPSCALE] Image téléchargée: {input_path}")
+                logger.info(f"[UPSCALE] Image téléchargée: {input_path}")
                 
                 # Analyser la taille de l'image
                 img = Image.open(input_path)
                 width, height = img.size
                 pixels = width * height
                 img.close()
-                print(f"[UPSCALE] Dimensions: {width}x{height} ({pixels:,} pixels)")
+                logger.info(f"[UPSCALE] Dimensions: {width}x{height} ({pixels:,} pixels)")
                 
                 # Estimation du temps selon la taille (en CPU)
                 if pixels < 500_000:  # ~700x700
@@ -61,7 +71,7 @@ class Upscale(commands.Cog):
                     warning = f"⚠️ Image très grande ({width}x{height}) !\n" \
                              f"⏱️ Le traitement peut prendre très longtemps et risque de timeout."
                 
-                print(f"[UPSCALE] Temps estimé: {time_estimate}")
+                logger.info(f"[UPSCALE] Temps estimé: {time_estimate}")
                 
                 # Afficher l'avertissement si nécessaire
                 if warning:
@@ -79,20 +89,20 @@ class Upscale(commands.Cog):
                 
                 # Vérifier que l'exécutable existe
                 if not os.path.exists(realesrgan_path):
-                    print(f"[UPSCALE] ERREUR: Real-ESRGAN introuvable à {realesrgan_path}")
+                    logger.info(f"[UPSCALE] ERREUR: Real-ESRGAN introuvable à {realesrgan_path}")
                     await interaction.edit_original_response(
                         content=f"❌ Real-ESRGAN n'est pas installé. Chemin: {realesrgan_path}"
                     )
                     return
                 
-                print(f"[UPSCALE] Lancement de Real-ESRGAN: {realesrgan_path}")
+                logger.info(f"[UPSCALE] Lancement de Real-ESRGAN: {realesrgan_path}")
                 await interaction.edit_original_response(
                     content=f"🔄 Upscaling en cours...\n⏱️ Temps estimé : {time_estimate}\n\n"
                             f"💡 Le bot continue de fonctionner, soyez patient !"
                 )
                 
                 # Commande Real-ESRGAN avec asyncio pour ne pas bloquer l'event loop
-                print(f"[UPSCALE] Commande: {realesrgan_path} -i {input_path} -o {output_path} -s 4")
+                logger.info(f"[UPSCALE] Commande: {realesrgan_path} -i {input_path} -o {output_path} -s 4")
                 process = await asyncio.create_subprocess_exec(
                     realesrgan_path,
                     "-i", input_path,
@@ -110,7 +120,7 @@ class Upscale(commands.Cog):
                         await asyncio.sleep(10)  # Mise à jour toutes les 10 secondes
                         elapsed += 10
                         dot_str = "." * dots
-                        print(f"[UPSCALE] Toujours en cours... ({elapsed}s écoulées)")
+                        logger.info(f"[UPSCALE] Toujours en cours... ({elapsed}s écoulées)")
                         await interaction.edit_original_response(
                             content=f"🔄 Upscaling en cours{dot_str}\n⏱️ Temps estimé : {time_estimate}\n💡 Le processus est actif, merci de patienter !"       
                         )
@@ -119,9 +129,9 @@ class Upscale(commands.Cog):
                 update_task = asyncio.create_task(update_progress())
                 
                 try:
-                    print(f"[UPSCALE] En attente de la fin du processus...")
+                    logger.info(f"[UPSCALE] En attente de la fin du processus...")
                     stdout, stderr = await process.communicate()
-                    print(f"[UPSCALE] Processus terminé avec le code: {process.returncode}")
+                    logger.info(f"[UPSCALE] Processus terminé avec le code: {process.returncode}")
                 finally:
                     update_task.cancel()
                     try:
@@ -131,24 +141,24 @@ class Upscale(commands.Cog):
                 
                 if process.returncode != 0:
                     error_msg = stderr.decode() if stderr else "Erreur inconnue"
-                    print(f"[UPSCALE] ERREUR: {error_msg}")
+                    logger.info(f"[UPSCALE] ERREUR: {error_msg}")
                     await interaction.edit_original_response(
                         content=f"❌ Erreur Real-ESRGAN : {error_msg[:200]}"
                     )
                     return
                 
-                print(f"[UPSCALE] Upscaling terminé avec succès")
+                logger.info(f"[UPSCALE] Upscaling terminé avec succès")
                 
                 await interaction.edit_original_response(content="🔄 Vérification du fichier... 60%")
                 
                 # Vérifier que le fichier de sortie existe
                 if not os.path.exists(output_path):
-                    print(f"[UPSCALE] ERREUR: Fichier de sortie introuvable: {output_path}")
+                    logger.info(f"[UPSCALE] ERREUR: Fichier de sortie introuvable: {output_path}")
                     await interaction.edit_original_response(content="❌ Erreur : le fichier upscalé n'a pas été généré.")
                     return
                 
                 output_size = os.path.getsize(output_path)
-                print(f"[UPSCALE] Fichier de sortie créé: {output_path} ({output_size / (1024*1024):.2f} MB)")
+                logger.info(f"[UPSCALE] Fichier de sortie créé: {output_path} ({output_size / (1024*1024):.2f} MB)")
 
                 await interaction.edit_original_response(content="🔄 Optimisation de la taille... 80%")
                 
@@ -161,7 +171,7 @@ class Upscale(commands.Cog):
                 
                 # Si le fichier est trop gros, le compresser
                 if file_size > max_size:
-                    print(f"[UPSCALE] Fichier trop volumineux ({file_size / (1024*1024):.2f} MB), compression nécessaire")
+                    logger.info(f"[UPSCALE] Fichier trop volumineux ({file_size / (1024*1024):.2f} MB), compression nécessaire")
                     compressed_path = f"compressed_{interaction.id}.jpg"
                     
                     try:
@@ -187,17 +197,17 @@ class Upscale(commands.Cog):
                         final_path = compressed_path
                         message = "✅ Voici ton image upscalée (compressée pour Discord) :"
                         compressed_size = os.path.getsize(compressed_path)
-                        print(f"[UPSCALE] Compression réussie: {compressed_size / (1024*1024):.2f} MB")
+                        logger.info(f"[UPSCALE] Compression réussie: {compressed_size / (1024*1024):.2f} MB")
                         
                     except Exception as e:
-                        print(f"[UPSCALE] ERREUR lors de la compression: {e}")
+                        logger.info(f"[UPSCALE] ERREUR lors de la compression: {e}")
                         await interaction.edit_original_response(
                             content=f"❌ Fichier trop volumineux ({file_size / (1024*1024):.1f} MB) et impossible à compresser. Limite : 8 MB"
                         )
                         return
 
                 await interaction.edit_original_response(content="🔄 Envoi du fichier... 100%")
-                print(f"[UPSCALE] Préparation de l'envoi de l'embed...")
+                logger.info(f"[UPSCALE] Préparation de l'envoi de l'embed...")
                 
                 # Créer un embed avec les informations
                 embed = discord.Embed(
@@ -230,35 +240,35 @@ class Upscale(commands.Cog):
                     embed=embed,
                     files=files
                 )
-                print(f"[UPSCALE] Envoi réussi, suppression du message de progression")
+                logger.info(f"[UPSCALE] Envoi réussi, suppression du message de progression")
                 
                 # Supprimer le message de progression
                 await interaction.delete_original_response()
-                print(f"[UPSCALE] Traitement terminé avec succès pour {interaction.id}")
+                logger.info(f"[UPSCALE] Traitement terminé avec succès pour {interaction.id}")
 
             except subprocess.CalledProcessError as e:
-                print(f"[UPSCALE] ERREUR subprocess: {e}")
+                logger.info(f"[UPSCALE] ERREUR subprocess: {e}")
                 await interaction.edit_original_response(content=f"❌ Erreur Real-ESRGAN : {e}")
             except Exception as e:
-                print(f"[UPSCALE] ERREUR inattendue: {type(e).__name__}: {e}")
+                logger.info(f"[UPSCALE] ERREUR inattendue: {type(e).__name__}: {e}")
                 import traceback
                 traceback.print_exc()
                 await interaction.edit_original_response(content=f"❌ Erreur inattendue : {e}")
             finally:
                 # Nettoyage des fichiers temporaires
-                print(f"[UPSCALE] Nettoyage des fichiers temporaires...")
+                logger.info(f"[UPSCALE] Nettoyage des fichiers temporaires...")
                 if os.path.exists(input_path):
                     os.remove(input_path)
-                    print(f"[UPSCALE] Supprimé: {input_path}")
+                    logger.info(f"[UPSCALE] Supprimé: {input_path}")
                 if os.path.exists(output_path):
                     os.remove(output_path)
-                    print(f"[UPSCALE] Supprimé: {output_path}")
+                    logger.info(f"[UPSCALE] Supprimé: {output_path}")
                 compressed_path = f"compressed_{interaction.id}.jpg"
                 if os.path.exists(compressed_path):
                     os.remove(compressed_path)
-                    print(f"[UPSCALE] Supprimé: {compressed_path}")
-                print(f"[UPSCALE] Nettoyage terminé")
+                    logger.info(f"[UPSCALE] Supprimé: {compressed_path}")
+                logger.info(f"[UPSCALE] Nettoyage terminé")
 
 async def setup(bot):
     await bot.add_cog(Upscale(bot))
-    print ("✅ Extension Upscale chargée")
+    logger.info("✅ Extension Upscale chargée")

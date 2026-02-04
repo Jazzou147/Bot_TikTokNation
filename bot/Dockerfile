@@ -30,5 +30,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier le reste du code
 COPY . .
 
+# Désactiver le buffering Python pour voir les logs en temps réel
+ENV PYTHONUNBUFFERED=1
+
 # Lancer le bot
-CMD ["python", "main.py"]
+CMD ["python", "-u", "main.py"]
