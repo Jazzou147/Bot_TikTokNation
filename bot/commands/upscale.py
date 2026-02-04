@@ -1,11 +1,11 @@
 import discord
 from discord.ext import commands
 import os 
-import subprocess
 from discord import app_commands
 from PIL import Image
 import asyncio
 from pathlib import Path
+import subprocess  
 
 # Augmenter la limite de taille d'image pour Pillow
 Image.MAX_IMAGE_PIXELS = None
@@ -52,15 +52,24 @@ class Upscale(commands.Cog):
                 
                 await interaction.edit_original_response(content="🔄 Upscaling en cours... 40%")
                 
-                # Commande Real-ESRGAN
-                command = [
+                # Commande Real-ESRGAN avec asyncio pour ne pas bloquer l'event loop
+                process = await asyncio.create_subprocess_exec(
                     realesrgan_path,
                     "-i", input_path,
                     "-o", output_path,
-                    "-s", "4"   # upscale x4
-                ]
-
-                subprocess.run(command, check=True, capture_output=True)
+                    "-s", "4",  # upscale x4
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Erreur inconnue"
+                    await interaction.edit_original_response(
+                        content=f"❌ Erreur Real-ESRGAN : {error_msg[:200]}"
+                    )
+                    return
                 
                 await interaction.edit_original_response(content="🔄 Vérification du fichier... 60%")
                 
