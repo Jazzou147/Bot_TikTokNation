@@ -34,8 +34,37 @@ class Upscale(commands.Cog):
             output_path = f"output_{interaction.id}.png"
             
             try:
-                await interaction.edit_original_response(content="🔄 Téléchargement de l'image... 20%")
+                await interaction.edit_original_response(content="🔄 Téléchargement de l'image... 10%")
                 await image.save(Path(input_path))
+                
+                # Analyser la taille de l'image
+                img = Image.open(input_path)
+                width, height = img.size
+                pixels = width * height
+                img.close()
+                
+                # Estimation du temps selon la taille (en CPU)
+                if pixels < 500_000:  # ~700x700
+                    time_estimate = "30 secondes à 2 minutes"
+                    warning = ""
+                elif pixels < 1_500_000:  # ~1200x1200
+                    time_estimate = "2 à 5 minutes"
+                    warning = "⚠️ Image moyenne, cela peut prendre du temps sur CPU."
+                elif pixels < 4_000_000:  # ~2000x2000
+                    time_estimate = "5 à 15 minutes"
+                    warning = "⚠️ Grande image, traitement très long sur CPU !"
+                else:  # Plus de 4 millions de pixels
+                    time_estimate = "15 minutes ou plus"
+                    warning = f"⚠️ Image très grande ({width}x{height}) !\n" \
+                             f"⏱️ Le traitement peut prendre très longtemps et risque de timeout."
+                
+                # Afficher l'avertissement si nécessaire
+                if warning:
+                    await interaction.edit_original_response(
+                        content=f"{warning}\n📊 Taille : {width}x{height} ({pixels:,} pixels)\n"
+                                f"⏱️ Temps estimé : {time_estimate}\n\n🔄 Préparation..."
+                    )
+                    await asyncio.sleep(2)
 
                 # Déterminer le chemin de l'exécutable selon l'OS
                 if os.name == 'nt':  # Windows
@@ -50,7 +79,10 @@ class Upscale(commands.Cog):
                     )
                     return
                 
-                await interaction.edit_original_response(content="🔄 Upscaling en cours... 40%")
+                await interaction.edit_original_response(
+                    content=f"🔄 Upscaling en cours...\n⏱️ Temps estimé : {time_estimate}\n\n"
+                            f"💡 Le bot continue de fonctionner, soyez patient !"
+                )
                 
                 # Commande Real-ESRGAN avec asyncio pour ne pas bloquer l'event loop
                 process = await asyncio.create_subprocess_exec(
@@ -62,7 +94,28 @@ class Upscale(commands.Cog):
                     stderr=asyncio.subprocess.PIPE
                 )
                 
-                stdout, stderr = await process.communicate()
+                # Créer une tâche pour mettre à jour le message pendant le traitement
+                async def update_progress():
+                    dots = 1
+                    while True:
+                        await asyncio.sleep(10)  # Mise à jour toutes les 10 secondes
+                        dot_str = "." * dots
+                        await interaction.edit_original_response(
+                            content=f"🔄 Upscaling en cours{dot_str}\n⏱️ Temps estimé : {time_estimate}\n\n"
+                                    f"💡 Le processus est actif, merci de patienter !"
+                        )
+                        dots = (dots % 3) + 1
+                
+                update_task = asyncio.create_task(update_progress())
+                
+                try:
+                    stdout, stderr = await process.communicate()
+                finally:
+                    update_task.cancel()
+                    try:
+                        await update_task
+                    except asyncio.CancelledError:
+                        pass
                 
                 if process.returncode != 0:
                     error_msg = stderr.decode() if stderr else "Erreur inconnue"
