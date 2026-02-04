@@ -37,8 +37,18 @@ class Upscale(commands.Cog):
                 await interaction.edit_original_response(content="🔄 Téléchargement de l'image... 20%")
                 await image.save(Path(input_path))
 
-                # Chemin vers l'exécutable Real-ESRGAN
-                realesrgan_path = os.path.join("tools", "real-esrgan", "realesrgan-ncnn-vulkan.exe")
+                # Déterminer le chemin de l'exécutable selon l'OS
+                if os.name == 'nt':  # Windows
+                    realesrgan_path = os.path.join("tools", "real-esrgan", "realesrgan-ncnn-vulkan.exe")
+                else:  # Linux/Unix (Render)
+                    realesrgan_path = os.path.join("tools", "real-esrgan", "realesrgan-ncnn-vulkan")
+                
+                # Vérifier que l'exécutable existe
+                if not os.path.exists(realesrgan_path):
+                    await interaction.edit_original_response(
+                        content=f"❌ Real-ESRGAN n'est pas installé. Chemin: {realesrgan_path}"
+                    )
+                    return
                 
                 await interaction.edit_original_response(content="🔄 Upscaling en cours... 40%")
                 
