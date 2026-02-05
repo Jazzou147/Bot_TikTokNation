@@ -105,12 +105,15 @@ class CrunchyrollDownloader(commands.Cog):
             created_files = []
             try:
                 ydl_opts: dict[str, Any] = {
-                    "format": "bestvideo+bestaudio/best",
+                    "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                     "outtmpl": input_filename,
-                    "quiet": True,
+                    "quiet": False,
+                    "no_warnings": False,
                     "merge_output_format": "mp4",
-                    "ignoreerrors": True,
-                    "no_warnings": True,
+                    "ignoreerrors": False,
+                    "extract_flat": False,
+                    "cookiefile": None,
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 }
                 try:
                     logging.info(f"🔽 Démarrage téléchargement: {url}")
@@ -118,23 +121,38 @@ class CrunchyrollDownloader(commands.Cog):
                     with yt_dlp.YoutubeDL(
                         __import__("typing").cast(Any, ydl_opts)
                     ) as ydl:
-                        await asyncio.to_thread(ydl.download, [url])
+                        info = await asyncio.to_thread(ydl.extract_info, url, download=True)
+                        if info:
+                            logging.info(f"✅ Vidéo extraite: {info.get('title', 'Unknown')}")
                     logging.info(f"✅ Téléchargement terminé: {input_filename}")
                     print(f"[crunchyroll] Téléchargement terminé: {input_filename}")
                 except Exception as e:
                     # Gestion explicite des sites non supportés ou erreurs yt-dlp
                     err_str = str(e).lower()
-                    if "unsupported url" in err_str or "no extractor" in err_str:
+                    logging.error(f"❌ Erreur yt-dlp détaillée: {e}")
+                    print(f"[crunchyroll] Erreur yt-dlp: {e}")
+                    
+                    if "unsupported url" in err_str or "no suitable extractor" in err_str:
                         await safe_edit(
                             content="❌ Ce site n'est pas supporté par yt-dlp."
                         )
                         return
-                    if "drm" in err_str:
+                    if "drm" in err_str or "protected" in err_str:
                         await safe_edit(
                             content="❌ Cette vidéo est protégée par DRM et ne peut pas être téléchargée."
                         )
                         return
-                    await safe_edit(content=f"❌ Erreur yt-dlp : {e}")
+                    if "private" in err_str or "members-only" in err_str:
+                        await safe_edit(
+                            content="❌ Cette vidéo est privée ou réservée aux membres."
+                        )
+                        return
+                    if "age" in err_str and "restricted" in err_str:
+                        await safe_edit(
+                            content="❌ Cette vidéo a une restriction d'âge et ne peut pas être téléchargée."
+                        )
+                        return
+                    await safe_edit(content=f"❌ Erreur lors du téléchargement:\n```{str(e)[:500]}```")
                     return
                 if not os.path.exists(input_filename):
                     await safe_edit(

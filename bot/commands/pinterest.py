@@ -251,9 +251,7 @@ class Pinterest(commands.Cog):
                                     content="✅ Téléchargement terminé :",
                                     file=discord.File("temp.mp4"),
                                 )
-                                await progress_msg.edit(
-                                    content="✅ Vidéo envoyée en message privé"
-                                )
+                                
                                 logging.info("✅ Vidéo envoyée en DM avec succès")
 
                         except Exception as e:
