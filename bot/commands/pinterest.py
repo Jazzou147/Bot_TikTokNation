@@ -78,31 +78,49 @@ class Pinterest(commands.Cog):
                                 logging.error(
                                     f"❌ L'URL résolue n'est pas un lien Pinterest valide : {url}"
                                 )
-                                await interaction.followup.send(
-                                    "❌ Le lien raccourci ne pointe pas vers une épingle Pinterest valide."
-                                )
+                                try:
+                                    await interaction.user.send(
+                                        "❌ Le lien raccourci ne pointe pas vers une épingle Pinterest valide."
+                                    )
+                                except:
+                                    await interaction.followup.send(
+                                        f"{interaction.user.mention} ❌ Le lien raccourci ne pointe pas vers une épingle Pinterest valide."
+                                    )
                                 return
                     except Exception as e:
                         logging.error(
                             f"❌ Erreur de résolution du lien raccourci : {e}"
                         )
-                        await interaction.followup.send(
-                            "❌ Impossible de résoudre le lien raccourci Pinterest."
-                        )
+                        try:
+                            await interaction.user.send(
+                                "❌ Impossible de résoudre le lien raccourci Pinterest."
+                            )
+                        except:
+                            await interaction.followup.send(
+                                f"{interaction.user.mention} ❌ Impossible de résoudre le lien raccourci Pinterest."
+                            )
                         return
 
                 # Vérifie si l'URL est un lien Pinterest valide
                 if not re.match(r"^https?://([a-z]+\.)?pinterest\.[a-z]+/pin/", url):
-                    await interaction.user.send("❌ Lien Pinterest invalide.")
+                    try:
+                        await interaction.user.send("❌ Lien Pinterest invalide.")
+                    except:
+                        await interaction.followup.send(f"{interaction.user.mention} ❌ Lien Pinterest invalide.")
                     return
 
                 try:
                     # Récupère le contenu de la page Pinterest
                     async with session.get(url) as resp:
                         if resp.status != 200:
-                            await interaction.user.send(
-                                "⚠️ Impossible d'accéder au lien."
-                            )
+                            try:
+                                await interaction.user.send(
+                                    "⚠️ Impossible d'accéder au lien."
+                                )
+                            except:
+                                await interaction.followup.send(
+                                    f"{interaction.user.mention} ⚠️ Impossible d'accéder au lien."
+                                )
                             return
                         page = await resp.text()
 
@@ -144,15 +162,28 @@ class Pinterest(commands.Cog):
 
                     # Si aucune source vidéo n'est trouvée, notifie l'utilisateur
                     if not video_url:
-                        await interaction.user.send(
-                            "⚠️ Aucun média détecté sur ce lien."
-                        )
+                        try:
+                            await interaction.user.send(
+                                "⚠️ Aucun média détecté sur ce lien."
+                            )
+                        except:
+                            await interaction.followup.send(
+                                f"{interaction.user.mention} ⚠️ Aucun média détecté sur ce lien."
+                            )
                         return
 
-                    # Téléchargement de la vidéo avec suivi de progression en DM
-                    progress_msg = await interaction.user.send(
-                        "⏳ Téléchargement de la vidéo en cours : 0%"
-                    )
+                    # Téléchargement de la vidéo avec suivi de progression
+                    try:
+                        progress_msg = await interaction.user.send(
+                            "⏳ Téléchargement de la vidéo en cours : 0%"
+                        )
+                        send_to_channel = False  # Indicateur pour savoir où envoyer
+                    except:
+                        # Si impossible d'envoyer en DM, on enverra sur le salon
+                        progress_msg = await interaction.followup.send(
+                            f"{interaction.user.mention} ⏳ Téléchargement de la vidéo en cours : 0%", wait=True
+                        )
+                        send_to_channel = True  # On enverra la vidéo sur le salon
                     async with session.get(video_url) as video_resp:
                         file_size = int(video_resp.headers.get("Content-Length", 0))
                         chunk_size = 1024 * 64  # Taille des chunks (64 Ko)
@@ -170,26 +201,35 @@ class Pinterest(commands.Cog):
                             # Met à jour la progression en pourcentage ou en Mo
                             if file_size:
                                 percent = int(downloaded / file_size * 100)
+                                prefix = f"{interaction.user.mention} " if send_to_channel else ""
                                 await progress_msg.edit(
-                                    content=f"⏳ Téléchargement : {percent}%"
+                                    content=f"{prefix}⏳ Téléchargement : {percent}%"
                                 )
                             else:
                                 size_mb = round(downloaded / 1024 / 1024, 2)
+                                prefix = f"{interaction.user.mention} " if send_to_channel else ""
                                 await progress_msg.edit(
-                                    content=f"⏳ Téléchargement : {size_mb} Mo"
+                                    content=f"{prefix}⏳ Téléchargement : {size_mb} Mo"
                                 )
 
                     # Vérifie si la vidéo dépasse la limite de taille de Discord
                     if len(video_data) > self.max_file_size_mb * 1024 * 1024:
                         size_mb = round(len(video_data) / 1024 / 1024, 2)
-                        # Envoie le lien direct en DM si la vidéo est trop lourde
-                        await interaction.user.send(
-                            content=f"📎 La vidéo est trop lourde pour Discord ({size_mb} Mo).\nVoici le lien direct : {video_url}"
-                        )
-                        await progress_msg.edit(
-                            content="✅ Lien direct envoyé en message privé"
-                        )
-                        logging.info("📎 Lien direct envoyé en DM")
+                        # Envoie le lien direct selon l'endroit déterminé
+                        if send_to_channel:
+                            await interaction.followup.send(
+                                content=f"{interaction.user.mention} 📎 La vidéo est trop lourde pour Discord ({size_mb} Mo).\nVoici le lien direct : {video_url}"
+                            )
+                            await progress_msg.delete()
+                            logging.info("📎 Lien direct envoyé sur le salon")
+                        else:
+                            await interaction.user.send(
+                                content=f"📎 La vidéo est trop lourde pour Discord ({size_mb} Mo).\nVoici le lien direct : {video_url}"
+                            )
+                            await progress_msg.edit(
+                                content="✅ Lien direct envoyé en message privé"
+                            )
+                            logging.info("📎 Lien direct envoyé en DM")
 
                         return
 
@@ -198,23 +238,52 @@ class Pinterest(commands.Cog):
                         f.write(video_data)
 
                         try:
-                            # Envoie la vidéo en message privé
-                            await interaction.user.send(
-                                content="✅ Téléchargement terminé :",
-                                file=discord.File("temp.mp4"),
-                            )
-
-                            await progress_msg.edit(
-                                content="✅ Vidéo envoyée en message privé"
-                            )
-                            logging.info("✅ Vidéo envoyée en DM avec succès")
+                            # Envoie la vidéo selon l'endroit déterminé
+                            if send_to_channel:
+                                await interaction.followup.send(
+                                    content=f"{interaction.user.mention} ✅ Téléchargement terminé :",
+                                    file=discord.File("temp.mp4"),
+                                )
+                                await progress_msg.delete()
+                                logging.info("✅ Vidéo envoyée sur le salon")
+                            else:
+                                await interaction.user.send(
+                                    content="✅ Téléchargement terminé :",
+                                    file=discord.File("temp.mp4"),
+                                )
+                                await progress_msg.edit(
+                                    content="✅ Vidéo envoyée en message privé"
+                                )
+                                logging.info("✅ Vidéo envoyée en DM avec succès")
 
                         except Exception as e:
-                            # Si l'envoi en DM échoue, notifie l'utilisateur
-                            await progress_msg.edit(
-                                content=f"❌ Impossible d'envoyer la vidéo en message privé : {e}"
-                            )
-                            logging.warning(f"❌ Échec de l'envoi en DM : {e}")
+                            # Si l'envoi échoue, essaie l'autre méthode
+                            logging.warning(f"⚠️ Échec de l'envoi : {e}. Tentative alternative...")
+                            try:
+                                if send_to_channel:
+                                    # Si échec sur le salon, essaie en DM
+                                    await interaction.user.send(
+                                        content="✅ Téléchargement terminé :",
+                                        file=discord.File("temp.mp4"),
+                                    )
+                                    await progress_msg.delete()
+                                    logging.info("✅ Vidéo envoyée en DM")
+                                else:
+                                    # Si échec en DM, essaie sur le salon
+                                    await interaction.followup.send(
+                                        content=f"{interaction.user.mention} ✅ Téléchargement terminé :",
+                                        file=discord.File("temp.mp4"),
+                                    )
+                                    await progress_msg.edit(
+                                        content="✅ Vidéo envoyée sur le salon (DM bloqués)"
+                                    )
+                                    logging.info("✅ Vidéo envoyée sur le salon")
+                            except Exception as e2:
+                                prefix = f"{interaction.user.mention} " if send_to_channel else ""
+                                await progress_msg.edit(
+                                    content=f"{prefix}❌ Impossible d'envoyer la vidéo : {e2}"
+                                )
+                                logging.error(f"❌ Échec complet de l'envoi : {e2}")
 
                     # Supprime le fichier temporaire après l'envoi
                     os.remove("temp.mp4")
