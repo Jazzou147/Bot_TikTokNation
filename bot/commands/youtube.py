@@ -52,11 +52,25 @@ class TikTokify(commands.Cog):
         cookies_content = os.getenv("YOUTUBE_COOKIES")
         if cookies_content:
             try:
+                # Remplacer les \n littéraux par de vrais retours à la ligne
+                # Cela gère le cas où Render échappe les retours à la ligne
+                cookies_content = cookies_content.replace("\\n", "\n")
+                
                 # Créer un fichier de cookies temporaire
                 self.cookies_file = "youtube_cookies.txt"
                 with open(self.cookies_file, "w", encoding="utf-8") as f:
                     f.write(cookies_content)
-                print("✅ Cookies YouTube chargés depuis la variable d'environnement")
+                
+                # Vérifier que le fichier commence bien par le header Netscape
+                with open(self.cookies_file, "r", encoding="utf-8") as f:
+                    first_line = f.readline().strip()
+                    if "# Netscape HTTP Cookie File" not in first_line and not first_line.startswith("."):
+                        print("⚠️ Format de cookies invalide. Le fichier doit commencer par '# Netscape HTTP Cookie File'")
+                        print(f"Première ligne trouvée : {first_line[:100]}")
+                        self.cookies_file = None
+                    else:
+                        print("✅ Cookies YouTube chargés depuis la variable d'environnement")
+                        print(f"📄 Première ligne du fichier : {first_line[:80]}...")
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création du fichier de cookies : {e}")
                 self.cookies_file = None
