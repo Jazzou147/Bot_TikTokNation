@@ -43,20 +43,15 @@ class Pinterest(commands.Cog):
             return
 
         # Défère la réponse pour indiquer que le bot traite la commande
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         logging.info(
             f"📥 Commande /pinterest appelée par {interaction.user.name} avec l'URL : {url}"
         )
 
-        # Envoie une notification initiale dans le salon (on la capture pour suppression plus tard)
-        initial_msg = await interaction.followup.send(
-            f"📩 {interaction.user.mention}, la vidéo sera publiée dans ce salon si possible.",
-            wait=True,
-        )
-
-        # Nom affichable du salon en évitant l'accès direct à `mention` (DM n'a pas cet attribut)
-        channel_mention = getattr(
-            interaction.channel, "mention", interaction.user.mention
+        # Envoie une notification dans le salon indiquant l'envoi en DM
+        await interaction.followup.send(
+            f"📩 {interaction.user.mention}, je vais t'envoyer la vidéo en message privé.",
+            ephemeral=True,
         )
 
         # Utilisation d'un sémaphore pour limiter les téléchargements simultanés
@@ -98,14 +93,14 @@ class Pinterest(commands.Cog):
 
                 # Vérifie si l'URL est un lien Pinterest valide
                 if not re.match(r"^https?://([a-z]+\.)?pinterest\.[a-z]+/pin/", url):
-                    await interaction.followup.send("❌ Lien Pinterest invalide.")
+                    await interaction.user.send("❌ Lien Pinterest invalide.")
                     return
 
                 try:
                     # Récupère le contenu de la page Pinterest
                     async with session.get(url) as resp:
                         if resp.status != 200:
-                            await interaction.followup.send(
+                            await interaction.user.send(
                                 "⚠️ Impossible d'accéder au lien."
                             )
                             return
@@ -149,16 +144,14 @@ class Pinterest(commands.Cog):
 
                     # Si aucune source vidéo n'est trouvée, notifie l'utilisateur
                     if not video_url:
-                        await interaction.followup.send(
+                        await interaction.user.send(
                             "⚠️ Aucun média détecté sur ce lien."
                         )
                         return
 
-                    # Téléchargement de la vidéo avec suivi de progression
-                    progress_msg: discord.WebhookMessage = (
-                        await interaction.followup.send(
-                            "⏳ Téléchargement de la vidéo en cours : 0%", wait=True
-                        )
+                    # Téléchargement de la vidéo avec suivi de progression en DM
+                    progress_msg = await interaction.user.send(
+                        "⏳ Téléchargement de la vidéo en cours : 0%"
                     )
                     async with session.get(video_url) as video_resp:
                         file_size = int(video_resp.headers.get("Content-Length", 0))
@@ -189,24 +182,14 @@ class Pinterest(commands.Cog):
                     # Vérifie si la vidéo dépasse la limite de taille de Discord
                     if len(video_data) > self.max_file_size_mb * 1024 * 1024:
                         size_mb = round(len(video_data) / 1024 / 1024, 2)
-                        # Publie le lien direct dans le salon si la vidéo est trop lourde
-                        await interaction.followup.send(
+                        # Envoie le lien direct en DM si la vidéo est trop lourde
+                        await interaction.user.send(
                             content=f"📎 La vidéo est trop lourde pour Discord ({size_mb} Mo).\nVoici le lien direct : {video_url}"
                         )
                         await progress_msg.edit(
-                            content=f"📬 Lien direct publié dans le salon {channel_mention}"
+                            content="✅ Lien direct envoyé en message privé"
                         )
-                        logging.info("📎 Lien direct publié dans le salon")
-
-                        # Supprime les messages précédents (initial + progression)
-                        try:
-                            await initial_msg.delete()
-                        except Exception:
-                            pass
-                        try:
-                            await progress_msg.delete()
-                        except Exception:
-                            pass
+                        logging.info("📎 Lien direct envoyé en DM")
 
                         return
 
@@ -215,43 +198,40 @@ class Pinterest(commands.Cog):
                         f.write(video_data)
 
                         try:
-                            # Envoie la vidéo directement dans le salon où la commande a été utilisée
-                            await interaction.followup.send(
+                            # Envoie la vidéo en message privé
+                            await interaction.user.send(
                                 content="✅ Téléchargement terminé :",
                                 file=discord.File("temp.mp4"),
                             )
 
                             await progress_msg.edit(
-                                content=f"📬 Vidéo publiée dans le salon {channel_mention}"
+                                content="✅ Vidéo envoyée en message privé"
                             )
-                            logging.info("✅ Vidéo publiée dans le salon avec succès")
-
-                            # Supprime les messages précédents (initial + progression)
-                            try:
-                                await initial_msg.delete()
-                            except Exception:
-                                pass
-                            try:
-                                await progress_msg.delete()
-                            except Exception:
-                                pass
+                            logging.info("✅ Vidéo envoyée en DM avec succès")
 
                         except Exception as e:
-                            # Si l'envoi dans le salon échoue, notifie l'utilisateur
+                            # Si l'envoi en DM échoue, notifie l'utilisateur
                             await progress_msg.edit(
-                                content=f"❌ Impossible de publier la vidéo dans le salon : {e}"
+                                content=f"❌ Impossible d'envoyer la vidéo en message privé : {e}"
                             )
-                            logging.warning(f"❌ Échec de l'envoi dans le salon : {e}")
+                            logging.warning(f"❌ Échec de l'envoi en DM : {e}")
 
                     # Supprime le fichier temporaire après l'envoi
                     os.remove("temp.mp4")
 
                 except Exception as e:
-                    # Gère les erreurs et notifie l'utilisateur
-                    logging.error(f"❌ Erreur dans /pindownload : {e}", exc_info=True)
-                    await interaction.followup.send(
-                        f"❌ Une erreur est survenue : {str(e)}"
-                    )
+                    # Gère les erreurs et notifie l'utilisateur en DM
+                    logging.error(f"❌ Erreur dans /pinterest : {e}", exc_info=True)
+                    try:
+                        await interaction.user.send(
+                            f"❌ Une erreur est survenue : {str(e)}"
+                        )
+                    except Exception:
+                        # Si l'envoi en DM échoue, utilise followup
+                        await interaction.followup.send(
+                            f"❌ Une erreur est survenue : {str(e)}",
+                            ephemeral=True
+                        )
 
 
 # Fonction pour charger le "Cog" dans le bot
