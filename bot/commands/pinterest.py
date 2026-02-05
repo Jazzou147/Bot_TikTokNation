@@ -174,12 +174,27 @@ class Pinterest(commands.Cog):
 
                     # Téléchargement de la vidéo avec suivi de progression
                     try:
+                        # Message de disclaimer
+                        await interaction.user.send(
+                            "⚠️ **Disclaimer :**\n"
+                            "• Vous êtes responsable de l'utilisation du contenu téléchargé\n"
+                            "• Vous respectez les droits d'auteur et les conditions d'utilisation de Pinterest\n"
+                            "• Le bot est fourni tel quel, sans garantie\n"
+                            "• Vous utilisez ce service de votre plein gré et à vos propres risques"
+                        )
                         progress_msg = await interaction.user.send(
                             "⏳ Téléchargement de la vidéo en cours : 0%"
                         )
                         send_to_channel = False  # Indicateur pour savoir où envoyer
                     except:
                         # Si impossible d'envoyer en DM, on enverra sur le salon
+                        await interaction.followup.send(
+                            f"{interaction.user.mention}\n⚠️ **Disclaimer :**\n"
+                            "• Vous êtes responsable de l'utilisation du contenu téléchargé\n"
+                            "• Vous respectez les droits d'auteur et les conditions d'utilisation de Pinterest\n"
+                            "• Le bot est fourni tel quel, sans garantie\n"
+                            "• Vous utilisez ce service de votre plein gré et à vos propres risques"
+                        )
                         progress_msg = await interaction.followup.send(
                             f"{interaction.user.mention} ⏳ Téléchargement de la vidéo en cours : 0%", wait=True
                         )

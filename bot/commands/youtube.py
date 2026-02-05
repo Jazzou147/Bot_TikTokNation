@@ -194,7 +194,12 @@ class TikTokify(commands.Cog):
 
         async with self.semaphore:
             await interaction.response.send_message(
-                "📥 **Téléchargement en cours...**\n⏳ Extraction de la vidéo YouTube...",
+                "📥 **Téléchargement en cours...**\n⏳ Extraction de la vidéo YouTube...\n\n"
+                "⚠️ *En utilisant cette commande, vous acceptez que :*\n"
+                "• *Vous êtes responsable de l'utilisation du contenu téléchargé*\n"
+                "• *Vous respectez les droits d'auteur et les conditions d'utilisation de YouTube*\n"
+                "• *Le bot est fourni tel quel, sans garantie*\n"
+                "• *Vous utilisez ce service de votre plein gré et à vos propres risques*",
                 ephemeral=False,
             )
 
