@@ -112,8 +112,29 @@ class CrunchyrollDownloader(commands.Cog):
                     "merge_output_format": "mp4",
                     "ignoreerrors": False,
                     "extract_flat": False,
-                    "cookiefile": None,
-                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "nocheckcertificate": True,
+                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    "referer": "https://www.youtube.com/",
+                    "http_headers": {
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+                        "Accept-Encoding": "gzip, deflate, br",
+                        "DNT": "1",
+                        "Connection": "keep-alive",
+                        "Upgrade-Insecure-Requests": "1",
+                        "Sec-Fetch-Dest": "document",
+                        "Sec-Fetch-Mode": "navigate",
+                        "Sec-Fetch-Site": "none",
+                        "Sec-Fetch-User": "?1",
+                        "Cache-Control": "max-age=0",
+                    },
+                    "extractor_args": {
+                        "youtube": {
+                            "skip": ["dash", "hls"],
+                            "player_client": ["android", "web"],
+                            "player_skip": ["configs"],
+                        }
+                    },
                 }
                 try:
                     logging.info(f"🔽 Démarrage téléchargement: {url}")
@@ -132,6 +153,14 @@ class CrunchyrollDownloader(commands.Cog):
                     logging.error(f"❌ Erreur yt-dlp détaillée: {e}")
                     print(f"[crunchyroll] Erreur yt-dlp: {e}")
                     
+                    if "sign in to confirm" in err_str or "not a bot" in err_str or "cookies" in err_str:
+                        await safe_edit(
+                            content="❌ YouTube bloque le téléchargement (détection de bot).\n"
+                            "💡 **Alternatives :**\n"
+                            "• Essayez avec un lien d'un autre site (TikTok, Twitter, Instagram, etc.)\n"
+                            "• Ou téléchargez manuellement et envoyez le fichier"
+                        )
+                        return
                     if "unsupported url" in err_str or "no suitable extractor" in err_str:
                         await safe_edit(
                             content="❌ Ce site n'est pas supporté par yt-dlp."
@@ -150,6 +179,11 @@ class CrunchyrollDownloader(commands.Cog):
                     if "age" in err_str and "restricted" in err_str:
                         await safe_edit(
                             content="❌ Cette vidéo a une restriction d'âge et ne peut pas être téléchargée."
+                        )
+                        return
+                    if "unavailable" in err_str or "removed" in err_str:
+                        await safe_edit(
+                            content="❌ Cette vidéo n'est plus disponible ou a été supprimée."
                         )
                         return
                     await safe_edit(content=f"❌ Erreur lors du téléchargement:\n```{str(e)[:500]}```")
