@@ -175,12 +175,15 @@ class TikTokify(commands.Cog):
         video_url: str,
         sous_titres: bool = False,
     ):
+        # Répondre immédiatement pour éviter l'expiration de l'interaction
+        await interaction.response.defer(ephemeral=False)
+        
         # Vérifier si la commande est utilisée dans le bon salon
         if (
             not hasattr(interaction.channel, "name")
             or interaction.channel.name != "▶️┃gen-youtube"
         ):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Cette commande ne peut être utilisée que dans le salon **▶️┃gen-youtube**",
                 ephemeral=True,
             )
@@ -188,7 +191,7 @@ class TikTokify(commands.Cog):
 
         # Vérifier si le semaphore permet encore des téléchargements
         if self.semaphore._value == 0:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "⏳ Trop d'utilisateurs utilisent cette commande en ce moment. Veuillez réessayer dans quelques instants.",
                 ephemeral=False,
             )
@@ -197,7 +200,7 @@ class TikTokify(commands.Cog):
         # Vérifier la limite quotidienne
         if not self._check_daily_limit():
             remaining_videos = self.daily_limit - self.daily_stats["count"]
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"⛔ **Limite quotidienne atteinte !**\n\n"
                 f"Le bot a atteint sa limite de **{self.daily_limit} vidéos par jour**.\n"
                 f"Vidéos téléchargées aujourd'hui : **{self.daily_stats['count']}/{self.daily_limit}**\n\n"
@@ -207,18 +210,15 @@ class TikTokify(commands.Cog):
             return
 
         async with self.semaphore:
-            await interaction.response.send_message(
+            initial_message = await interaction.followup.send(
                 "📥 **Téléchargement en cours...**\n⏳ Extraction de la vidéo YouTube...\n\n"
                 "⚠️ *En utilisant cette commande, vous acceptez que :*\n"
                 "• *Vous êtes responsable de l'utilisation du contenu téléchargé*\n"
                 "• *Vous respectez les droits d'auteur et les conditions d'utilisation de YouTube*\n"
                 "• *Le bot est fourni tel quel, sans garantie*\n"
                 "• *Vous utilisez ce service de votre plein gré et à vos propres risques*",
-                ephemeral=False,
+                wait=True,
             )
-
-            # Récupérer le message pour le modifier plus tard
-            initial_message = await interaction.original_response()
 
             interaction_id = str(interaction.id)
             timestamp = int(time.time())
