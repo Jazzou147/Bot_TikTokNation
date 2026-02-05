@@ -127,39 +127,42 @@ class CrunchyrollDownloader(commands.Cog):
             unique_id = f"{interaction_id}_{timestamp}"
             input_filename = f"video_{unique_id}.mp4"
             created_files = []
+            
+            # Vérifier si c'est une URL YouTube
+            is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
+            
             try:
-                ydl_opts: dict[str, Any] = {
-                    "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-                    "outtmpl": input_filename,
-                    "quiet": False,
-                    "no_warnings": False,
-                    "merge_output_format": "mp4",
-                    "ignoreerrors": False,
-                    "extract_flat": False,
-                    "nocheckcertificate": True,
-                    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                    "referer": "https://www.youtube.com/",
-                    "http_headers": {
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-                        "Accept-Encoding": "gzip, deflate, br",
-                        "DNT": "1",
-                        "Connection": "keep-alive",
-                        "Upgrade-Insecure-Requests": "1",
-                        "Sec-Fetch-Dest": "document",
-                        "Sec-Fetch-Mode": "navigate",
-                        "Sec-Fetch-Site": "none",
-                        "Sec-Fetch-User": "?1",
-                        "Cache-Control": "max-age=0",
-                    },
-                    "extractor_args": {
-                        "youtube": {
-                            "skip": ["dash", "hls"],
-                            "player_client": ["android", "web"],
-                            "player_skip": ["configs"],
-                        }
-                    },
-                }
+                # Configuration pour YouTube (plus agressive)
+                if is_youtube:
+                    ydl_opts: dict[str, Any] = {
+                        "format": "best[ext=mp4]/best",
+                        "outtmpl": input_filename,
+                        "quiet": False,
+                        "no_warnings": False,
+                        "merge_output_format": "mp4",
+                        "ignoreerrors": False,
+                        "nocheckcertificate": True,
+                        "geo_bypass": True,
+                        "user_agent": "com.google.android.youtube/19.02.39 (Linux; U; Android 13) gzip",
+                        "extractor_args": {
+                            "youtube": {
+                                "player_client": ["android_creator", "android", "ios", "mweb"],
+                                "skip": ["webpage", "configs"],
+                            }
+                        },
+                    }
+                else:
+                    # Configuration standard pour les autres sites
+                    ydl_opts: dict[str, Any] = {
+                        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                        "outtmpl": input_filename,
+                        "quiet": False,
+                        "no_warnings": False,
+                        "merge_output_format": "mp4",
+                        "ignoreerrors": False,
+                        "nocheckcertificate": True,
+                        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    }
                 try:
                     logging.info(f"🔽 Démarrage téléchargement: {url}")
                     print(f"[crunchyroll] Démarrage téléchargement: {url}")
@@ -176,6 +179,25 @@ class CrunchyrollDownloader(commands.Cog):
                     err_str = str(e).lower()
                     logging.error(f"❌ Erreur yt-dlp détaillée: {e}")
                     print(f"[crunchyroll] Erreur yt-dlp: {e}")
+                    
+                    # Erreurs d'extraction YouTube (JSON/Player Response)
+                    if "failed to extract" in err_str or "failed to parse json" in err_str or "player response" in err_str:
+                        if is_youtube:
+                            await safe_edit(
+                                content="❌ **YouTube bloque actuellement les téléchargements**\n\n"
+                                "YouTube a renforcé ses protections et bloque yt-dlp. Même avec la dernière version, l'accès est impossible sans authentification.\n\n"
+                                "**✅ Sites qui fonctionnent :**\n"
+                                "• TikTok, Twitter/X, Instagram, Facebook, Twitch\n"
+                                "• Crunchyroll, Vimeo, Dailymotion, etc.\n\n"
+                                "**Pour YouTube :**\n"
+                                "• 📥 Téléchargez manuellement et envoyez le fichier\n"
+                                "• 🌐 Utilisez un site de téléchargement en ligne"
+                            )
+                        else:
+                            await safe_edit(
+                                content=f"❌ Erreur d'extraction :\n```{str(e)[:500]}```"
+                            )
+                        return
                     
                     if "sign in to confirm" in err_str or "not a bot" in err_str or "cookies" in err_str:
                         await safe_edit(
