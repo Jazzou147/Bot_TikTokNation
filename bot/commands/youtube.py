@@ -460,6 +460,17 @@ class TikTokify(commands.Cog):
 
                 total_clips = int(duration // 60) + (1 if duration % 60 > 0 else 0)
 
+                # Vérifications importantes avant le traitement
+                print(f"📊 Informations du traitement:")
+                print(f"  - Fichier source : {input_filename}")
+                print(f"  - Fichier existe : {os.path.exists(input_filename)}")
+                if os.path.exists(input_filename):
+                    file_size = os.path.getsize(input_filename)
+                    print(f"  - Taille du fichier : {file_size / (1024*1024):.2f} MB")
+                print(f"  - Durée vidéo : {duration:.2f}s")
+                print(f"  - Nombre de clips à générer : {total_clips}")
+                print(f"  - Sous-titres : {subtitle_file if subtitle_file else 'Aucun'}")
+
                 # Mise à jour du message principal avec les informations finales
                 if sous_titres:
                     if subtitle_file:
@@ -580,6 +591,17 @@ class TikTokify(commands.Cog):
                             output_filename,
                         ]
 
+                    # Vérifier que le fichier d'entrée existe avant de lancer ffmpeg
+                    if not os.path.exists(input_filename):
+                        error_message = f"❌ **Erreur fichier source**\nClip {i+1}: Le fichier {input_filename} n'existe pas"
+                        print(f"❌ Fichier source introuvable : {input_filename}")
+                        await self.safe_edit_message(
+                            initial_message, error_message, interaction.channel
+                        )
+                        await asyncio.sleep(2)
+                        continue
+                    
+                    print(f"🎬 Traitement clip {i+1}/{total_clips} - Commande ffmpeg lancée")
                     process = await asyncio.create_subprocess_exec(
                         *ffmpeg_cmd,
                         stdout=asyncio.subprocess.PIPE,
@@ -589,8 +611,32 @@ class TikTokify(commands.Cog):
 
                     if process.returncode != 0:
                         error_msg = stderr.decode() if stderr else "Erreur inconnue"
+                        # Afficher l'erreur complète dans les logs
+                        print(f"❌ Erreur ffmpeg clip {i+1}:")
+                        print(f"Return code: {process.returncode}")
+                        print(f"STDERR: {error_msg[:500]}")
+                        
                         # Mettre à jour le message principal avec l'erreur
-                        error_message = f"❌ **Erreur lors du traitement**\nClip {i+1}: {error_msg[:100]}..."
+                        error_message = f"❌ **Erreur lors du traitement**\nClip {i+1}: Erreur ffmpeg (code {process.returncode})\nVérifiez les logs pour plus de détails"
+                        await self.safe_edit_message(
+                            initial_message, error_message, interaction.channel
+                        )
+                        await asyncio.sleep(2)
+                        continue
+
+                    # Vérifier si le fichier de sortie a bien été créé
+                    if not os.path.exists(output_filename):
+                        print(f"❌ Clip {i+1} - Le fichier {output_filename} n'a pas été créé par ffmpeg")
+                        error_message = f"❌ **Erreur de génération**\nClip {i+1}: Le fichier n'a pas été créé"
+                        await self.safe_edit_message(
+                            initial_message, error_message, interaction.channel
+                        )
+                        await asyncio.sleep(2)
+                        continue
+                    
+                    if os.path.getsize(output_filename) == 0:
+                        print(f"❌ Clip {i+1} - Le fichier {output_filename} est vide (0 octets)")
+                        error_message = f"❌ **Erreur de génération**\nClip {i+1}: Le fichier généré est vide"
                         await self.safe_edit_message(
                             initial_message, error_message, interaction.channel
                         )
@@ -602,6 +648,7 @@ class TikTokify(commands.Cog):
                         and os.path.getsize(output_filename) > 0
                     ):
                         file_size_mb = os.path.getsize(output_filename) / (1024 * 1024)
+                        print(f"✅ Clip {i+1} créé avec succès : {file_size_mb:.1f}MB")
 
                         # Vérifier la durée réelle du clip
                         duration_cmd = [
@@ -804,7 +851,10 @@ class TikTokify(commands.Cog):
 
                     final_message = f"✅ **Traitement terminé avec succès**\n📊 {len(processed_clips)} clip(s) générés et envoyés\n🎬 Tous les fichiers ont été traités correctement"
                 else:
-                    final_message = f"⚠️ **Aucun clip généré**\nUne erreur est survenue lors du traitement"
+                    print(f"❌ AUCUN CLIP GÉNÉRÉ - processed_clips est vide")
+                    print(f"Total clips attendus : {total_clips}")
+                    print(f"Fichier source : {input_filename} - Existe : {os.path.exists(input_filename)}")
+                    final_message = f"⚠️ **Aucun clip généré**\nTous les clips ont échoué lors du traitement.\nVérifiez les logs pour plus de détails sur les erreurs ffmpeg."
 
                 await self.safe_edit_message(
                     initial_message, final_message, interaction.channel
