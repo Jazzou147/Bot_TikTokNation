@@ -6,7 +6,31 @@ import asyncio
 import os
 import time
 import logging
+import subprocess
+import sys
 from typing import Union, Any
+
+
+def update_ytdlp():
+    """Met à jour yt-dlp au démarrage"""
+    try:
+        print("🔄 Vérification des mises à jour de yt-dlp...")
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0:
+            print("✅ yt-dlp à jour")
+        else:
+            print(f"⚠️ Mise à jour yt-dlp échouée: {result.stderr}")
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la mise à jour de yt-dlp: {e}")
+
+
+# Mise à jour de yt-dlp au chargement du module
+update_ytdlp()
 
 
 class CrunchyrollDownloader(commands.Cog):
