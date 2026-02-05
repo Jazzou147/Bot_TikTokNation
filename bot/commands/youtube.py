@@ -228,16 +228,17 @@ class TikTokify(commands.Cog):
 
             try:
                 ydl_opts = {
-                    "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=720]/best",
+                    # Format plus simple et compatible - essai avec best directement
+                    "format": "best[height<=1080]/best",
                     "outtmpl": input_filename,
-                    "quiet": True,
+                    "quiet": False,  # Activer les logs pour voir les erreurs
+                    "no_warnings": False,
                     "merge_output_format": "mp4",
                     "writesubtitles": sous_titres,
                     "writeautomaticsub": sous_titres,
                     "subtitleslangs": ["fr", "en"] if sous_titres else [],
                     "subtitlesformat": "srt" if sous_titres else None,
                     "ignoreerrors": True,  # Ignorer les erreurs de sous-titres
-                    "no_warnings": True,  # Réduire les warnings
                     "sleep_interval": 1,  # Délai pour éviter le rate limiting
                     "max_sleep_interval": 3,
                     "embed_subs": False,  # NE PAS intégrer les sous-titres dans la vidéo
@@ -269,68 +270,82 @@ class TikTokify(commands.Cog):
                     ydl_opts["cookiefile"] = self.cookies_file
                     print("🍪 Utilisation des cookies YouTube")
 
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    try:
+                download_success = False
+                
+                # Essai 1 : Format best avec limite 1080p
+                print("📥 Tentative 1 : Format best[height<=1080]/best")
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         await asyncio.to_thread(ydl.download, [video_url])
+                    if os.path.exists(input_filename) and os.path.getsize(input_filename) > 0:
+                        download_success = True
+                        print("✅ Téléchargement réussi (essai 1)")
+                except Exception as e:
+                    print(f"⚠️ Essai 1 échoué : {e}")
+
+                # Essai 2 : Format best sans restriction si essai 1 échoue
+                if not download_success:
+                    print("📥 Tentative 2 : Format best (sans restriction)")
+                    ydl_opts["format"] = "best"
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            await asyncio.to_thread(ydl.download, [video_url])
+                        if os.path.exists(input_filename) and os.path.getsize(input_filename) > 0:
+                            download_success = True
+                            print("✅ Téléchargement réussi (essai 2)")
                     except Exception as e:
-                        # Si le téléchargement avec le format spécifique échoue, essayer un format plus simple
-                        if (
-                            "format" in str(e).lower()
-                            or "not available" in str(e).lower()
-                        ):
-                            print(f"⚠️ Erreur format : {e}")
-                            print("🔄 Tentative avec un format plus simple...")
+                        print(f"⚠️ Essai 2 échoué : {e}")
 
-                            # Fallback avec format plus simple
-                            ydl_opts_fallback = ydl_opts.copy()
-                            ydl_opts_fallback["format"] = "best[height<=720]/best"
-                            ydl_opts_fallback["writesubtitles"] = False
-                            ydl_opts_fallback["writeautomaticsub"] = False
+                # Essai 3 : Format le plus compatible (pas de filtre)
+                if not download_success:
+                    print("📥 Tentative 3 : Format par défaut de yt-dlp")
+                    ydl_opts_simple = {
+                        "outtmpl": input_filename,
+                        "quiet": False,
+                        "merge_output_format": "mp4",
+                        "nocheckcertificate": True,
+                    }
+                    if self.cookies_file and os.path.exists(self.cookies_file):
+                        ydl_opts_simple["cookiefile"] = self.cookies_file
+                    
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_opts_simple) as ydl:
+                            await asyncio.to_thread(ydl.download, [video_url])
+                        if os.path.exists(input_filename) and os.path.getsize(input_filename) > 0:
+                            download_success = True
+                            print("✅ Téléchargement réussi (essai 3)")
+                    except Exception as e:
+                        print(f"❌ Essai 3 échoué : {e}")
 
-                            with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl_fallback:
-                                await asyncio.to_thread(
-                                    ydl_fallback.download, [video_url]
-                                )
+                # Vérifier que le téléchargement a réussi
+                if not download_success or not os.path.exists(input_filename):
+                    error_message = "❌ **Échec du téléchargement**\n\nImpossible de télécharger cette vidéo YouTube.\nLa vidéo est peut-être privée, supprimée ou géo-bloquée."
+                    await self.safe_edit_message(
+                        initial_message, error_message, interaction.channel
+                    )
+                    return
 
-                            # Télécharger les sous-titres séparément si demandés
-                            if sous_titres:
-                                try:
-                                    ydl_opts_subs = {
-                                        "writesubtitles": True,
-                                        "writeautomaticsub": True,
-                                        "subtitleslangs": ["fr", "en"],
-                                        "subtitlesformat": "srt",
-                                        "skip_download": True,
-                                        "outtmpl": input_filename,
-                                        "quiet": True,
-                                        "ignoreerrors": True,
-                                    }
-                                    # Ajouter les cookies si disponibles
-                                    if self.cookies_file and os.path.exists(self.cookies_file):
-                                        ydl_opts_subs["cookiefile"] = self.cookies_file
-                                    with yt_dlp.YoutubeDL(ydl_opts_subs) as ydl_subs:
-                                        await asyncio.to_thread(
-                                            ydl_subs.download, [video_url]
-                                        )
-                                except Exception as sub_error:
-                                    print(
-                                        f"⚠️ Impossible de télécharger les sous-titres : {sub_error}"
-                                    )
-                        # Si le téléchargement avec sous-titres échoue, réessayer sans
-                        elif sous_titres and "subtitle" in str(e).lower():
-                            print(f"⚠️ Erreur sous-titres : {e}")
-                            print("🔄 Téléchargement sans sous-titres...")
-
-                            ydl_opts_no_subs = ydl_opts.copy()
-                            ydl_opts_no_subs["writesubtitles"] = False
-                            ydl_opts_no_subs["writeautomaticsub"] = False
-
-                            with yt_dlp.YoutubeDL(ydl_opts_no_subs) as ydl_no_subs:
-                                await asyncio.to_thread(
-                                    ydl_no_subs.download, [video_url]
-                                )
-                        else:
-                            raise e
+                # Télécharger les sous-titres séparément si demandés
+                if sous_titres:
+                    try:
+                        print("📝 Téléchargement des sous-titres...")
+                        ydl_opts_subs = {
+                            "writesubtitles": True,
+                            "writeautomaticsub": True,
+                            "subtitleslangs": ["fr", "en"],
+                            "subtitlesformat": "srt",
+                            "skip_download": True,
+                            "outtmpl": input_filename,
+                            "quiet": True,
+                            "ignoreerrors": True,
+                        }
+                        if self.cookies_file and os.path.exists(self.cookies_file):
+                            ydl_opts_subs["cookiefile"] = self.cookies_file
+                        
+                        with yt_dlp.YoutubeDL(ydl_opts_subs) as ydl_subs:
+                            await asyncio.to_thread(ydl_subs.download, [video_url])
+                    except Exception as sub_error:
+                        print(f"⚠️ Impossible de télécharger les sous-titres : {sub_error}")
 
                 created_files.append(input_filename)  # Ajouter le fichier à la liste
                 
