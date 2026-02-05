@@ -52,6 +52,9 @@ clean_*.srt
 logs/
 *.sqlite
 
+# Statistiques quotidiennes
+daily_stats.json
+
 # Cookies YouTube (informations sensibles)
 *_cookies.txt
 bot/config/*_cookies.txt
