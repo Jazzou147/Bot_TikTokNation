@@ -143,64 +143,94 @@ class TikTokify(commands.Cog):
                 # 🔧 User-Agent aléatoire pour contourner la détection
                 random_ua = self.get_random_user_agent()
                 
+                # 🔥 STRATÉGIE AGRESSIVE : Forcer le client Android uniquement (le moins détecté)
                 ydl_opts = {
                     "format": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=720]/best",
                     "outtmpl": input_filename,
                     "quiet": True,
+                    "no_warnings": True,
                     "merge_output_format": "mp4",
                     "writesubtitles": sous_titres,
                     "writeautomaticsub": sous_titres,
                     "subtitleslangs": ["fr", "en"] if sous_titres else [],
                     "subtitlesformat": "srt" if sous_titres else None,
                     "ignoreerrors": True,
-                    "no_warnings": True,
-                    "sleep_interval": 1,
-                    "max_sleep_interval": 5,  # Augmenté pour éviter le rate limiting
+                    "sleep_interval": 2,  # Augmenter les délais
+                    "max_sleep_interval": 8,
                     "embed_subs": False,
                     "writeinfojson": False,
-                    # 🚀 Headers avancés anti-détection
+                    # 🚀 Headers Android pour se faire passer pour l'app mobile
                     "http_headers": {
-                        "User-Agent": random_ua,
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-                        "Accept-Encoding": "gzip, deflate, br",
-                        "DNT": "1",
-                        "Connection": "keep-alive",
-                        "Upgrade-Insecure-Requests": "1",
-                        "Sec-Fetch-Dest": "document",
-                        "Sec-Fetch-Mode": "navigate",
-                        "Sec-Fetch-Site": "none",
-                        "Sec-Fetch-User": "?1",
-                        "Cache-Control": "max-age=0",
+                        "User-Agent": "com.google.android.youtube/19.02.39 (Linux; U; Android 13; fr_FR) gzip",
+                        "Accept": "*/*",
+                        "Accept-Language": "fr-FR,fr;q=0.9",
+                        "Accept-Encoding": "gzip, deflate",
+                        "X-YouTube-Client-Name": "3",  # Client Android
+                        "X-YouTube-Client-Version": "19.02.39",
                     },
-                    # 🔥 Extracteurs alternatifs pour contourner les blocages
+                    # 🔥 FORCER UNIQUEMENT LE CLIENT ANDROID CREATOR STUDIO (le plus fiable)
                     "extractor_args": {
                         "youtube": {
-                            # Utiliser les clients Android et iOS (moins détectés)
-                            "player_client": ["android", "ios", "tv_embedded", "web"],
-                            "player_skip": ["webpage", "configs"],
-                            # Bypass l'obligation de se connecter
-                            "skip": ["authcheck"],
+                            # Force UNIQUEMENT le client Android (le plus fiable)
+                            "player_client": ["android_creator"],
+                            # Skip tout ce qui peut causer des blocages
+                            "player_skip": ["webpage", "js", "configs"],
+                            "skip": ["authcheck", "dash", "hls"],
                         }
                     },
                     "nocheckcertificate": True,
-                    "retries": 15,  # Plus de tentatives
-                    "fragment_retries": 15,
+                    "retries": 20,
+                    "fragment_retries": 20,
                     "skip_unavailable_fragments": True,
-                    # Options supplémentaires anti-détection
-                    "prefer_insecure": False,
-                    "geo_bypass": True,  # Contourner les restrictions géographiques
-                    "age_limit": None,  # Pas de limite d'âge (peut échouer sans cookies pour contenu +18)
+                    "geo_bypass": True,
+                    # Forcer IPv4 (YouTube bloque parfois l'IPv6)
+                    "source_address": "0.0.0.0",
                 }
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     try:
                         await asyncio.to_thread(ydl.download, [video_url])
                     except Exception as e:
+                        error_msg = str(e).lower()
+                        
+                        # 🔥 FALLBACK 1 : Essayer avec le client iOS si Android échoue
+                        if "player response" in error_msg or "extract" in error_msg:
+                            print(f"⚠️ Client Android a échoué. Essai avec iOS...")
+                            
+                            ydl_opts_ios = ydl_opts.copy()
+                            ydl_opts_ios["extractor_args"] = {
+                                "youtube": {
+                                    "player_client": ["ios"],
+                                    "player_skip": ["webpage", "js", "configs"],
+                                }
+                            }
+                            ydl_opts_ios["http_headers"]["User-Agent"] = "com.google.ios.youtube/19.02.2 (iPhone16,2; U; CPU iOS 17_3 like Mac OS X; fr_FR)"
+                            
+                            try:
+                                with yt_dlp.YoutubeDL(ydl_opts_ios) as ydl_ios:
+                                    await asyncio.to_thread(ydl_ios.download, [video_url])
+                            except Exception as e2:
+                                # 🔥 FALLBACK 2 : Essayer avec le client TV Embedded (dernier recours)
+                                print(f"⚠️ Client iOS a échoué. Essai avec TV Embedded...")
+                                
+                                ydl_opts_tv = ydl_opts.copy()
+                                ydl_opts_tv["extractor_args"] = {
+                                    "youtube": {
+                                        "player_client": ["tv_embedded"],
+                                        "player_skip": ["webpage"],
+                                    }
+                                }
+                                ydl_opts_tv["format"] = "best[height<=720]/best"  # Format plus simple
+                                ydl_opts_tv["writesubtitles"] = False
+                                ydl_opts_tv["writeautomaticsub"] = False
+                                
+                                with yt_dlp.YoutubeDL(ydl_opts_tv) as ydl_tv:
+                                    await asyncio.to_thread(ydl_tv.download, [video_url])
+                        
                         # Si le téléchargement avec le format spécifique échoue, essayer un format plus simple
-                        if (
-                            "format" in str(e).lower()
-                            or "not available" in str(e).lower()
+                        elif (
+                            "format" in error_msg
+                            or "not available" in error_msg
                         ):
                             print(f"⚠️ Erreur format : {e}")
                             print("🔄 Tentative avec un format plus simple...")
@@ -750,8 +780,29 @@ class TikTokify(commands.Cog):
                 await asyncio.sleep(0.5)
 
             except Exception as e:
-                # Mettre à jour le message principal avec l'erreur
-                error_message = f"❌ **Erreur critique**\nUne erreur est survenue : `{str(e)[:150]}...`"
+                # Détecter le type d'erreur et adapter le message
+                error_str = str(e).lower()
+                
+                if "player response" in error_str or "extract" in error_str:
+                    # Erreur de blocage YouTube
+                    error_message = (
+                        "❌ **YouTube bloque le téléchargement** 🚫\n\n"
+                        "YouTube a détecté le bot et refuse l'accès.\n\n"
+                        "**Solutions possibles :**\n"
+                        "1️⃣ Réessayez dans quelques minutes\n"
+                        "2️⃣ Utilisez un autre lien (vidéo différente)\n"
+                        "3️⃣ Pour un accès fiable, des cookies d'authentification sont requis\n\n"
+                        f"*Erreur technique : {str(e)[:100]}*"
+                    )
+                elif "unavailable" in error_str or "private" in error_str:
+                    error_message = (
+                        "❌ **Vidéo indisponible**\n\n"
+                        "Cette vidéo est privée, supprimée ou géo-bloquée.\n"
+                        f"*Erreur : {str(e)[:100]}*"
+                    )
+                else:
+                    error_message = f"❌ **Erreur critique**\nUne erreur est survenue : `{str(e)[:150]}...`"
+                
                 await self.safe_edit_message(
                     initial_message, error_message, interaction.channel
                 )
