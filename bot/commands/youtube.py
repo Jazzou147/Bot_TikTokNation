@@ -271,34 +271,57 @@ class TikTokify(commands.Cog):
                     print("🍪 Utilisation des cookies YouTube")
 
                 download_success = False
+                last_error = None
                 
                 # Essai 1 : Format best avec limite 1080p
-                print("📥 Tentative 1 : Format best[height<=1080]/best")
+                print("=" * 50)
+                print("📥 ESSAI 1 : Format best[height<=1080]/best")
+                print("=" * 50)
                 try:
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         await asyncio.to_thread(ydl.download, [video_url])
                     if os.path.exists(input_filename) and os.path.getsize(input_filename) > 0:
                         download_success = True
-                        print("✅ Téléchargement réussi (essai 1)")
+                        print("✅ ✅ ✅ Téléchargement réussi (essai 1) ✅ ✅ ✅")
+                    else:
+                        print(f"❌ Essai 1 : Fichier non créé ou vide")
+                        print(f"   - Fichier existe: {os.path.exists(input_filename)}")
+                        if os.path.exists(input_filename):
+                            print(f"   - Taille: {os.path.getsize(input_filename)} octets")
                 except Exception as e:
-                    print(f"⚠️ Essai 1 échoué : {e}")
+                    last_error = str(e)
+                    print(f"❌ ❌ ❌ Essai 1 ÉCHOUÉ ❌ ❌ ❌")
+                    print(f"ERREUR: {e}")
+                    print("=" * 50)
 
                 # Essai 2 : Format best sans restriction si essai 1 échoue
                 if not download_success:
-                    print("📥 Tentative 2 : Format best (sans restriction)")
+                    print("=" * 50)
+                    print("📥 ESSAI 2 : Format best (sans restriction)")
+                    print("=" * 50)
                     ydl_opts["format"] = "best"
                     try:
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             await asyncio.to_thread(ydl.download, [video_url])
                         if os.path.exists(input_filename) and os.path.getsize(input_filename) > 0:
                             download_success = True
-                            print("✅ Téléchargement réussi (essai 2)")
+                            print("✅ ✅ ✅ Téléchargement réussi (essai 2) ✅ ✅ ✅")
+                        else:
+                            print(f"❌ Essai 2 : Fichier non créé ou vide")
+                            print(f"   - Fichier existe: {os.path.exists(input_filename)}")
+                            if os.path.exists(input_filename):
+                                print(f"   - Taille: {os.path.getsize(input_filename)} octets")
                     except Exception as e:
-                        print(f"⚠️ Essai 2 échoué : {e}")
+                        last_error = str(e)
+                        print(f"❌ ❌ ❌ Essai 2 ÉCHOUÉ ❌ ❌ ❌")
+                        print(f"ERREUR: {e}")
+                        print("=" * 50)
 
                 # Essai 3 : Format le plus compatible (pas de filtre)
                 if not download_success:
-                    print("📥 Tentative 3 : Format par défaut de yt-dlp")
+                    print("=" * 50)
+                    print("📥 ESSAI 3 : Format par défaut de yt-dlp")
+                    print("=" * 50)
                     ydl_opts_simple = {
                         "outtmpl": input_filename,
                         "quiet": False,
@@ -313,17 +336,37 @@ class TikTokify(commands.Cog):
                             await asyncio.to_thread(ydl.download, [video_url])
                         if os.path.exists(input_filename) and os.path.getsize(input_filename) > 0:
                             download_success = True
-                            print("✅ Téléchargement réussi (essai 3)")
+                            print("✅ ✅ ✅ Téléchargement réussi (essai 3) ✅ ✅ ✅")
+                        else:
+                            print(f"❌ Essai 3 : Fichier non créé ou vide")
+                            print(f"   - Fichier existe: {os.path.exists(input_filename)}")
+                            if os.path.exists(input_filename):
+                                print(f"   - Taille: {os.path.getsize(input_filename)} octets")
                     except Exception as e:
-                        print(f"❌ Essai 3 échoué : {e}")
+                        last_error = str(e)
+                        print(f"❌ ❌ ❌ Essai 3 ÉCHOUÉ ❌ ❌ ❌")
+                        print(f"ERREUR: {e}")
+                        print("=" * 50)
 
                 # Vérifier que le téléchargement a réussi
+                print("=" * 50)
+                print(f"🔍 VÉRIFICATION FINALE")
+                print(f"   - download_success: {download_success}")
+                print(f"   - Fichier existe: {os.path.exists(input_filename)}")
+                print(f"   - Dernière erreur: {last_error[:200] if last_error else 'Aucune'}")
+                print("=" * 50)
+                
                 if not download_success or not os.path.exists(input_filename):
-                    error_message = "❌ **Échec du téléchargement**\n\nImpossible de télécharger cette vidéo YouTube.\nLa vidéo est peut-être privée, supprimée ou géo-bloquée."
+                    print("🛑 🛑 🛑 ARRÊT : TÉLÉCHARGEMENT ÉCHOUÉ 🛑 🛑 🛑")
+                    error_details = f"\n\nDernière erreur: {last_error[:100]}" if last_error else ""
+                    error_message = f"❌ **Échec du téléchargement**\n\nImpossible de télécharger cette vidéo YouTube.\nLa vidéo est peut-être privée, supprimée ou géo-bloquée.{error_details}"
                     await self.safe_edit_message(
                         initial_message, error_message, interaction.channel
                     )
+                    print("🛑 RETURN MAINTENANT...")
                     return
+                
+                print("✅ ✅ ✅ TÉLÉCHARGEMENT CONFIRMÉ - CONTINUATION ✅ ✅ ✅")
 
                 # Télécharger les sous-titres séparément si demandés
                 if sous_titres:
