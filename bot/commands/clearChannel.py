@@ -2,6 +2,22 @@ import discord
 from discord.ext import commands
 
 
+# Fonction pour vérifier si l'utilisateur a le rôle Moderateur
+def is_moderator():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not interaction.guild:
+            return False
+        # Récupérer le membre (pas l'utilisateur)
+        member = interaction.guild.get_member(interaction.user.id)
+        if not member:
+            return False
+        moderator_role = discord.utils.get(interaction.guild.roles, name="Moderateur")
+        if not moderator_role:
+            return False
+        return moderator_role in member.roles
+    return discord.app_commands.check(predicate)
+
+
 class Clear(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -9,17 +25,14 @@ class Clear(commands.Cog):
     # Commande pour supprimer tous les messages du canal
     @discord.app_commands.command(
         name="channel-clear",
-        description="Supprime les messages du canal (admin uniquement)",
+        description="Supprime les messages du canal (Moderateur uniquement)",
     )
-    @discord.app_commands.checks.has_permissions(administrator=True)
+    @is_moderator()
     @discord.app_commands.describe(
         limit="Nombre de messages à supprimer (défaut: 100, max: 1000)"
     )
     async def channel_clear(self, interaction: discord.Interaction, limit: int = 100):
-        if (
-            not interaction.guild
-            or not interaction.guild.me.guild_permissions.manage_messages
-        ):
+        if not interaction.guild or not interaction.guild.me.guild_permissions.manage_messages:
             await interaction.response.send_message(
                 "🚫 Je n'ai pas la permission de gérer les messages.", ephemeral=True
             )
@@ -62,12 +75,17 @@ class Clear(commands.Cog):
             ephemeral=True,
         )
 
-    # Gestion des erreurs de permissions
+    # Gestion des erreurs
     @channel_clear.error
     async def clear_error(self, interaction: discord.Interaction, error):
-        if isinstance(error, discord.app_commands.errors.MissingPermissions):
+        if isinstance(error, discord.app_commands.errors.CheckFailure):
             await interaction.response.send_message(
-                "🚫 Tu n'as pas la permission d'utiliser cette commande.",
+                "🚫 Tu as besoin du rôle **Moderateur** pour utiliser cette commande.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                f"❌ Une erreur s'est produite : {str(error)}",
                 ephemeral=True,
             )
 
