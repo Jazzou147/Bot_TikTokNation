@@ -89,14 +89,7 @@ class Instagram(commands.Cog):
                 # Puis envoyer la vidéo
                 with open(video_file, 'rb') as f:
                     discord_file = discord.File(f, filename=f"{video_title[:50]}.mp4")
-                    video_embed = discord.Embed(
-                        title="📹 Vidéo Instagram",
-                        description=f"**{video_title}**",
-                        color=discord.Color.purple()
-                    )
-                    video_embed.set_footer(text=f"Demandé par {interaction.user.display_name}")
-                    
-                    await interaction.followup.send(embed=video_embed, file=discord_file)
+                    await interaction.followup.send(file=discord_file)
 
                 # Nettoyer le fichier temporaire
                 os.remove(video_file)
