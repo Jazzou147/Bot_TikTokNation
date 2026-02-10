@@ -27,6 +27,7 @@ class Clear(commands.Cog):
         name="channel-clear",
         description="Supprime les messages du canal (Moderateur uniquement)",
     )
+    @discord.app_commands.default_permissions(manage_messages=True)
     @is_moderator()
     @discord.app_commands.describe(
         limit="Nombre de messages à supprimer (défaut: 100, max: 1000)"

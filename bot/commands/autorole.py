@@ -11,6 +11,7 @@ class AutoRole(commands.Cog):
         name="autorole",
         description="Attribue le rôle 'Membre' à un utilisateur s'il n'a pas de rôle"
     )
+    @discord.app_commands.default_permissions(manage_roles=True)
     @discord.app_commands.checks.has_permissions(manage_roles=True)
     @discord.app_commands.guild_only()
     async def slash_autorole(self, interaction: discord.Interaction, member: discord.Member):
