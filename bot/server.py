@@ -40,10 +40,10 @@ def auto_ping():
     
     if public_url:
         url = f"{public_url}/ping"
-        logging.info(f"🔄 Auto-ping configuré vers: {url}")
+        # logging.info(f"🔄 Auto-ping configuré vers: {url}")
     else:
         url = f"http://localhost:{port}/ping"
-        logging.info(f"🔄 Auto-ping configuré en local: {url}")
+        # logging.info(f"🔄 Auto-ping configuré en local: {url}")
     
     ping_count = 0
     
