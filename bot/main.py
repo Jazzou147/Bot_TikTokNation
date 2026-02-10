@@ -22,6 +22,7 @@ logging.basicConfig(
 # --- Définir les intents ---
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True  # Nécessaire pour on_member_join et gérer les membres
 
 
 class MyBot(commands.Bot):
