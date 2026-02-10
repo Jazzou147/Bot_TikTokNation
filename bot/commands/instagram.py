@@ -11,11 +11,19 @@ class Instagram(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="instagram",
+        name="instagram_beta",
         description="Télécharge une vidéo Instagram et l'envoie sur Discord"
     )
     @app_commands.describe(url="Le lien de partage Instagram de la vidéo")
     async def instagram(self, interaction: discord.Interaction, url: str):
+        # Vérifier que la commande est utilisée dans le bon salon
+        if interaction.channel and interaction.channel.name != "▶️┃gen-instagram":
+            await interaction.response.send_message(
+                "❌ Cette commande n'est disponible que dans le salon <#▶️┃gen-instagram>.",
+                ephemeral=True
+            )
+            return
+        
         await interaction.response.defer()
         
         try:
@@ -56,27 +64,30 @@ class Instagram(commands.Cog):
                 )
                 return
 
-            # Envoyer la vidéo sur Discord
+            # Envoyer le disclaimer d'abord
+            disclaimer_embed = discord.Embed(
+                title="⚠️ Disclaimer",
+                description=(
+                    "• Vous êtes responsable de l'utilisation du contenu téléchargé\n"
+                    "• Vous respectez les droits d'auteur et les conditions d'utilisation d'Instagram\n"
+                    "• Le bot est fourni tel quel, sans garantie\n"
+                    "• Vous utilisez ce service de votre plein gré et à vos propres risques"
+                ),
+                color=discord.Color.orange()
+            )
+            await interaction.followup.send(embed=disclaimer_embed)
+            
+            # Puis envoyer la vidéo
             with open(video_file, 'rb') as f:
                 discord_file = discord.File(f, filename=f"{video_title[:50]}.mp4")
-                embed = discord.Embed(
+                video_embed = discord.Embed(
                     title="📹 Vidéo Instagram",
                     description=f"**{video_title}**",
                     color=discord.Color.purple()
                 )
-                embed.add_field(
-                    name="⚠️ Disclaimer",
-                    value=(
-                        "• Vous êtes responsable de l'utilisation du contenu téléchargé\n"
-                        "• Vous respectez les droits d'auteur et les conditions d'utilisation d'Instagram\n"
-                        "• Le bot est fourni tel quel, sans garantie\n"
-                        "• Vous utilisez ce service de votre plein gré et à vos propres risques"
-                    ),
-                    inline=False
-                )
-                embed.set_footer(text=f"Demandé par {interaction.user.display_name}")
+                video_embed.set_footer(text=f"Demandé par {interaction.user.display_name}")
                 
-                await interaction.followup.send(embed=embed, file=discord_file)
+                await interaction.followup.send(embed=video_embed, file=discord_file)
 
             # Nettoyer le fichier temporaire
             os.remove(video_file)
