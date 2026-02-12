@@ -34,10 +34,10 @@ build/
 *.avi
 *.mov
 *.flv
-clip_*.mp4
-video_*.mp4
-temp_*.mp4
-clean_*.srt
+bot/clip_*.mp4
+bot/video_*.mp4
+bot/temp_*.mp4
+bot/clean_*.srt
 
 # IDEs
 .vscode/
@@ -51,20 +51,3 @@ clean_*.srt
 *.log
 logs/
 *.sqlite
-
-# Statistiques quotidiennes
-daily_stats.json
-
-# Cookies YouTube (informations sensibles)
-*_cookies.txt
-bot/config/*_cookies.txt
-youtube_cookies.txt
-
-# Dossiers personnalisés
-mk/
-# Exclure les binaires ffmpeg lourds inclus par erreur
-bot/utils/ffmpeg-2025-09-08-git-45db6945e9-full_build/
-bot/utils/**/bin/ffmpeg*
-bot/utils/**/bin/ffprobe*
-bot/utils/**/bin/ffplay*
-
