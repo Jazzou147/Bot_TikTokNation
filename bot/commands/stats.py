@@ -17,47 +17,57 @@ class Stats(commands.Cog):
         self.bot = bot
     
     @app_commands.command(
+        name="mystats",
+        description="Affiche tes statistiques personnelles et ton classement"
+    )
+    async def mystats(self, interaction: discord.Interaction):
+        """Commande publique pour voir ses propres stats"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            await self._show_personal_stats(interaction, None, ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Une erreur s'est produite : {str(e)}", ephemeral=True)
+            print(f"Erreur dans /mystats: {e}")
+    
+    @app_commands.command(
         name="stats",
-        description="Affiche les statistiques du bot et ton classement"
+        description="[ADMIN] Affiche les statistiques complètes du bot"
     )
     @app_commands.describe(
         type="Type de statistiques à afficher",
         user="Utilisateur à consulter (optionnel)"
     )
     @app_commands.choices(type=[
-        app_commands.Choice(name="📊 Mes statistiques", value="personal"),
-        app_commands.Choice(name="🏆 Classement général", value="leaderboard"),
-        app_commands.Choice(name="🎬 Vidéos populaires", value="videos"),
-        app_commands.Choice(name="🌐 Statistiques globales", value="global"),
+        app_commands.Choice(name="📊 Statistiques d'un utilisateur", value="personal"),
+        app_commands.Choice(name="� Statistiques globales", value="global"),
     ])
+    @app_commands.default_permissions(manage_channels=True)
     async def stats(
         self,
         interaction: discord.Interaction,
         type: Optional[app_commands.Choice[str]] = None,
         user: Optional[discord.Member] = None
     ):
+        """Commande admin pour voir toutes les stats"""
         await interaction.response.defer()
         
-        # Par défaut, affiche les stats personnelles
+        # Par défaut, affiche les stats globales pour les admins
         if type is None:
-            type_value = "personal"
+            type_value = "global"
         else:
             type_value = type.value
         
         try:
             if type_value == "personal":
-                await self._show_personal_stats(interaction, user)
-            elif type_value == "leaderboard":
-                await self._show_leaderboard(interaction)
-            elif type_value == "videos":
-                await self._show_top_videos(interaction)
+                await self._show_personal_stats(interaction, user, ephemeral=False)
             elif type_value == "global":
                 await self._show_global_stats(interaction)
         except Exception as e:
             await interaction.followup.send(f"❌ Une erreur s'est produite : {str(e)}")
             print(f"Erreur dans /stats: {e}")
     
-    async def _show_personal_stats(self, interaction: discord.Interaction, target_user: Optional[discord.Member] = None):
+    async def _show_personal_stats(self, interaction: discord.Interaction, target_user: Optional[discord.Member] = None, ephemeral: bool = False):
         """Affiche les statistiques personnelles"""
         target = target_user if target_user else interaction.user
         user_stats = await stats_manager.get_user_stats(target.id)
@@ -137,7 +147,7 @@ class Stats(commands.Cog):
         
         embed.set_footer(text="TikTokNation Bot • Utilise /stats pour plus de détails")
         
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=ephemeral)
     
     async def _show_leaderboard(self, interaction: discord.Interaction):
         """Affiche le classement général"""
