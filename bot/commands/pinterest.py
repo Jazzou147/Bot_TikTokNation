@@ -6,6 +6,12 @@ import os
 import json
 import logging
 import asyncio
+import sys
+
+# Ajouter le dossier parent au path pour importer utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.stats_manager import stats_manager
 
 
 # Définition de la classe Pinterest en tant que "Cog" pour le bot Discord
@@ -252,6 +258,7 @@ class Pinterest(commands.Cog):
                     with open("temp.mp4", "wb") as f:
                         f.write(video_data)
 
+                        video_sent_successfully = False
                         try:
                             # Envoie la vidéo selon l'endroit déterminé
                             if send_to_channel:
@@ -261,6 +268,7 @@ class Pinterest(commands.Cog):
                                 )
                                 await progress_msg.delete()
                                 logging.info("✅ Vidéo envoyée sur le salon")
+                                video_sent_successfully = True
                             else:
                                 await interaction.user.send(
                                     content="✅ Téléchargement terminé :",
@@ -268,6 +276,7 @@ class Pinterest(commands.Cog):
                                 )
                                 
                                 logging.info("✅ Vidéo envoyée en DM avec succès")
+                                video_sent_successfully = True
 
                         except Exception as e:
                             # Si l'envoi échoue, essaie l'autre méthode
@@ -281,6 +290,7 @@ class Pinterest(commands.Cog):
                                     )
                                     await progress_msg.delete()
                                     logging.info("✅ Vidéo envoyée en DM")
+                                    video_sent_successfully = True
                                 else:
                                     # Si échec en DM, essaie sur le salon
                                     await interaction.followup.send(
@@ -291,12 +301,26 @@ class Pinterest(commands.Cog):
                                         content="✅ Vidéo envoyée sur le salon (DM bloqués)"
                                     )
                                     logging.info("✅ Vidéo envoyée sur le salon")
+                                    video_sent_successfully = True
                             except Exception as e2:
                                 prefix = f"{interaction.user.mention} " if send_to_channel else ""
                                 await progress_msg.edit(
                                     content=f"{prefix}❌ Impossible d'envoyer la vidéo : {e2}"
                                 )
                                 logging.error(f"❌ Échec complet de l'envoi : {e2}")
+
+                        # Enregistrer les statistiques si l'envoi a réussi
+                        if video_sent_successfully:
+                            try:
+                                await stats_manager.record_download(
+                                    user_id=interaction.user.id,
+                                    user_name=interaction.user.name,
+                                    platform="pinterest",
+                                    video_url=url,
+                                    video_title="Pinterest Video"
+                                )
+                            except Exception as stats_error:
+                                logging.warning(f"⚠️ Erreur lors de l'enregistrement des stats: {stats_error}")
 
                     # Supprime le fichier temporaire après l'envoi
                     os.remove("temp.mp4")

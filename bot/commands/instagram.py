@@ -6,6 +6,12 @@ import os
 import tempfile
 import logging
 import asyncio
+import sys
+
+# Ajouter le dossier parent au path pour importer utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.stats_manager import stats_manager
 
 class Instagram(commands.Cog):
     def __init__(self, bot):
@@ -90,6 +96,18 @@ class Instagram(commands.Cog):
                 with open(video_file, 'rb') as f:
                     discord_file = discord.File(f, filename=f"{video_title[:50]}.mp4")
                     await interaction.followup.send(file=discord_file)
+
+                # Enregistrer les statistiques
+                try:
+                    await stats_manager.record_download(
+                        user_id=interaction.user.id,
+                        user_name=interaction.user.name,
+                        platform="instagram",
+                        video_url=url,
+                        video_title=video_title
+                    )
+                except Exception as stats_error:
+                    logging.warning(f"⚠️ Erreur lors de l'enregistrement des stats: {stats_error}")
 
                 # Nettoyer le fichier temporaire
                 os.remove(video_file)
