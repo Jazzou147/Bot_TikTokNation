@@ -92,7 +92,7 @@ class LockChannel(commands.Cog):
         self.locked_channels.add(channel_id)
         await interaction.response.send_message(
             "🔒 **Salon verrouillé !** Seules les commandes du bot sont désormais autorisées.",
-            ephemeral=False,
+            ephemeral=True,
         )
         logging.info(f"🔒 Salon {channel_name} verrouillé par {interaction.user}")
 
@@ -122,7 +122,7 @@ class LockChannel(commands.Cog):
         self.locked_channels.remove(channel_id)
         await interaction.response.send_message(
             "🔓 **Salon déverrouillé !** Les messages sont à nouveau autorisés.",
-            ephemeral=False,
+            ephemeral=True,
         )
         logging.info(f"🔓 Salon {channel_name} déverrouillé par {interaction.user}")
 
