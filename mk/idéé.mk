@@ -1,11 +1,18 @@
-8. /stats 📊
-Statistiques personnelles (nombre de téléchargements)
-Vidéos les plus téléchargées
-Classement des utilisateurs les plus actifs
+
 9. /leaderboard 🏆
 Top 10 des utilisateurs les plus actifs
 Système de points/badges
 Récompenses mensuelles
-10. /suggest 💡
-Suggère du contenu tendance
-Basé sur les téléchargements populaires du serveur
+
+
+🎉 Événements & Récompenses
+/daily 🎁
+Récompense quotidienne (points/badges)
+Encourage l'activité régulière
+/giveaway 🎊
+Système de concours
+Tire au sort parmi les participants
+
+/purgeuser 🗑️
+Supprime toutes les stats d'un utilisateur
+Nettoie l'historique
