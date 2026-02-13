@@ -88,6 +88,35 @@ class HelpCommand(commands.Cog):
         )
 
         # ═══════════════════════════════════════════════════
+        # 📈 STATISTIQUES & TENDANCES
+        # ═══════════════════════════════════════════════════
+        embed.add_field(
+            name="📈 Statistiques & Tendances",
+            value="*Suivez les contenus populaires et vos performances*",
+            inline=False,
+        )
+
+        embed.add_field(
+            name="</suggest:0>",
+            value="```yaml\nSuggère du contenu tendance```\n"
+            "💡 Basé sur les téléchargements populaires\n"
+            "🔥 Top 5 des vidéos les plus partagées\n"
+            "📊 Statistiques du serveur\n"
+            "🌐 Accessible à tous",
+            inline=False,
+        )
+
+        embed.add_field(
+            name="</mystats:0>",
+            value="```yaml\nAffiche tes statistiques personnelles```\n"
+            "📊 Nombre de téléchargements\n"
+            "🏆 Ton classement sur le serveur\n"
+            "📈 Répartition par plateforme\n"
+            "🌐 Accessible à tous",
+            inline=False,
+        )
+
+        # ═══════════════════════════════════════════════════
         # 🎬 TÉLÉCHARGEMENTS & MÉDIAS
         # ═══════════════════════════════════════════════════
         embed.add_field(

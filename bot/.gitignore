@@ -7,10 +7,11 @@
 venv/
 env/
 ENV/
-bot/Scripts/
-bot/Lib/
-bot/Include/
-bot/pyvenv.cfg
+Scripts/
+Lib/
+Include/
+share/
+pyvenv.cfg
 
 # Fichiers Python
 *.py[cod]
