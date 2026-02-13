@@ -37,19 +37,20 @@ class Pinterest(commands.Cog):
         description="Télécharge une vidéo Pinterest en qualité maximale",
     )
     async def pinterest_download(self, interaction: discord.Interaction, url: str):
+        # Défère la réponse IMMÉDIATEMENT pour éviter l'expiration
+        await interaction.response.defer(ephemeral=True)
+        
         # Vérifier si la commande est utilisée dans le bon salon
         if (
             not hasattr(interaction.channel, "name")
             or interaction.channel.name != "🎨┃gen-pinterest"
         ):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Cette commande ne peut être utilisée que dans le salon **🎨┃gen-pinterest**",
                 ephemeral=True,
             )
             return
 
-        # Défère la réponse pour indiquer que le bot traite la commande
-        await interaction.response.defer(ephemeral=True)
         logging.info(
             f"📥 Commande /pinterest appelée par {interaction.user.name} avec l'URL : {url}"
         )

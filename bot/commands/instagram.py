@@ -59,19 +59,20 @@ class Instagram(commands.Cog):
     )
     @app_commands.describe(url="Le lien de partage Instagram de la vidéo")
     async def instagram(self, interaction: discord.Interaction, url: str):
+        # Défère la réponse IMMÉDIATEMENT pour éviter l'expiration
+        await interaction.response.defer(ephemeral=True)
+        
         # Vérifier si la commande est utilisée dans le bon salon
         if (
             not hasattr(interaction.channel, "name")
             or interaction.channel.name != "▶️┃gen-instagram"
         ):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Cette commande ne peut être utilisée que dans le salon **▶️┃gen-instagram**",
                 ephemeral=True,
             )
             return
         
-        # Défère la réponse pour indiquer que le bot traite la commande
-        await interaction.response.defer(ephemeral=True)
         logging.info(
             f"📥 Commande /instagram_beta appelée par {interaction.user.name} avec l'URL : {url}"
         )

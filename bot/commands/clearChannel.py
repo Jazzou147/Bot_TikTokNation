@@ -33,8 +33,11 @@ class Clear(commands.Cog):
         limit="Nombre de messages à supprimer (défaut: 100, max: 1000)"
     )
     async def channel_clear(self, interaction: discord.Interaction, limit: int = 100):
+        # Défère la réponse IMMÉDIATEMENT
+        await interaction.response.defer(ephemeral=True)
+        
         if not interaction.guild or not interaction.guild.me.guild_permissions.manage_messages:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "🚫 Je n'ai pas la permission de gérer les messages.", ephemeral=True
             )
             return
@@ -44,14 +47,11 @@ class Clear(commands.Cog):
             interaction.channel,
             (discord.TextChannel, discord.Thread, discord.VoiceChannel),
         ):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "🚫 Cette commande ne fonctionne que dans les canaux texte.",
                 ephemeral=True,
             )
             return
-
-        # Répondre de manière éphémère pour ne pas polluer
-        await interaction.response.defer(ephemeral=True)
 
         # Limiter à un maximum de 1000 messages pour éviter le rate limiting
         if limit > 1000:
@@ -80,15 +80,27 @@ class Clear(commands.Cog):
     @channel_clear.error
     async def clear_error(self, interaction: discord.Interaction, error):
         if isinstance(error, discord.app_commands.errors.CheckFailure):
-            await interaction.response.send_message(
-                "🚫 Tu as besoin du rôle **Moderateur** pour utiliser cette commande.",
-                ephemeral=True,
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    "🚫 Tu as besoin du rôle **Moderateur** pour utiliser cette commande.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    "🚫 Tu as besoin du rôle **Moderateur** pour utiliser cette commande.",
+                    ephemeral=True,
+                )
         else:
-            await interaction.response.send_message(
-                f"❌ Une erreur s'est produite : {str(error)}",
-                ephemeral=True,
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    f"❌ Une erreur s'est produite : {str(error)}",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    f"❌ Une erreur s'est produite : {str(error)}",
+                    ephemeral=True,
+                )
 
 
 async def setup(bot):
