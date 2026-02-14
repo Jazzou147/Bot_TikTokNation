@@ -5,9 +5,16 @@ from typing import Dict, List, Tuple
 import asyncio
 
 class StatsManager:
-    def __init__(self, stats_file: str = "data/stats.json"):
+    def __init__(self, stats_file: str = None):
+        # Utiliser un chemin absolu basé sur l'emplacement du fichier
+        if stats_file is None:
+            # Obtenir le dossier du bot (parent du dossier utils)
+            bot_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            stats_file = os.path.join(bot_dir, "data", "stats.json")
+        
         self.stats_file = stats_file
         self.lock = asyncio.Lock()
+        print(f"📊 StatsManager initialisé avec le fichier : {self.stats_file}")
         self._ensure_data_directory()
         self._ensure_stats_file()
     
@@ -16,6 +23,7 @@ class StatsManager:
         data_dir = os.path.dirname(self.stats_file)
         if data_dir and not os.path.exists(data_dir):
             os.makedirs(data_dir)
+            print(f"📁 Dossier de données créé : {data_dir}")
     
     def _ensure_stats_file(self):
         """Crée le fichier de stats s'il n'existe pas"""
@@ -30,17 +38,30 @@ class StatsManager:
                 "total_downloads": 0,
                 "last_updated": datetime.now().isoformat()
             }
-            with open(self.stats_file, "w", encoding="utf-8") as f:
-                json.dump(default_data, f, indent=4, ensure_ascii=False)
+            try:
+                with open(self.stats_file, "w", encoding="utf-8") as f:
+                    json.dump(default_data, f, indent=4, ensure_ascii=False)
+                print(f"✅ Fichier de stats créé : {self.stats_file}")
+            except Exception as e:
+                print(f"❌ Erreur lors de la création du fichier stats : {e}")
+        else:
+            print(f"✅ Fichier de stats existant trouvé : {self.stats_file}")
     
     async def load_stats(self) -> Dict:
         """Charge les statistiques depuis le fichier"""
         async with self.lock:
             try:
+                if not os.path.exists(self.stats_file):
+                    print(f"⚠️ Fichier stats non trouvé, création d'un nouveau fichier")
+                    self._ensure_stats_file()
+                
                 with open(self.stats_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    print(f"📖 Stats chargées : {len(data.get('users', {}))} utilisateurs, {len(data.get('videos', {}))} vidéos")
+                    return data
             except Exception as e:
                 print(f"⚠️ Erreur lors du chargement des stats: {e}")
+                # Retourner une structure par défaut en cas d'erreur
                 return {
                     "users": {},
                     "videos": {},
@@ -56,12 +77,15 @@ class StatsManager:
                 data["last_updated"] = datetime.now().isoformat()
                 with open(self.stats_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=4, ensure_ascii=False)
+                print(f"💾 Stats sauvegardées : {data.get('total_downloads', 0)} téléchargements totaux")
             except Exception as e:
                 print(f"⚠️ Erreur lors de la sauvegarde des stats: {e}")
     
     async def record_download(self, user_id: int, user_name: str, platform: str, video_url: str, video_title: str = "Vidéo sans titre"):
         """Enregistre un téléchargement"""
         stats = await self.load_stats()
+        
+        print(f"📊 Enregistrement du téléchargement : user={user_name}, platform={platform}")
         
         # Mise à jour des stats utilisateur
         user_id_str = str(user_id)

@@ -41,10 +41,8 @@ class Pinterest(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         
         # Vérifier si la commande est utilisée dans le bon salon
-        if (
-            not hasattr(interaction.channel, "name")
-            or interaction.channel.name != "🎨┃gen-pinterest"
-        ):
+        channel_name = getattr(interaction.channel, "name", None)
+        if channel_name != "🎨┃gen-pinterest":
             await interaction.followup.send(
                 "❌ Cette commande ne peut être utilisée que dans le salon **🎨┃gen-pinterest**",
                 ephemeral=True,
