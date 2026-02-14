@@ -1,11 +1,11 @@
 import json
 import os
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import asyncio
 
 class StatsManager:
-    def __init__(self, stats_file: str = None):
+    def __init__(self, stats_file: Optional[str] = None):
         # Utiliser un chemin absolu basé sur l'emplacement du fichier
         if stats_file is None:
             # Obtenir le dossier du bot (parent du dossier utils)

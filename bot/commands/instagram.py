@@ -138,7 +138,7 @@ class Instagram(commands.Cog):
                 }
 
                 # Télécharger la vidéo
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore
                     info = ydl.extract_info(url, download=True)
                     video_title = info.get('title') or 'Instagram Video'
                     video_file = ydl.prepare_filename(info)
