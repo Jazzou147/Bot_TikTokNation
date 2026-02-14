@@ -20,7 +20,7 @@ class Suggest(commands.Cog):
     )
     async def suggest(self, interaction: discord.Interaction):
         """Affiche les contenus les plus populaires du serveur"""
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         
         try:
             # Récupérer les vidéos les plus téléchargées

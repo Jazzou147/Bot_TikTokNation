@@ -18,40 +18,37 @@ class Instagram(commands.Cog):
         self.bot = bot
         # Limite le nombre de téléchargements simultanés à 2
         self.semaphore = asyncio.Semaphore(2)
-        self.progress_msg = None
-        self.send_to_channel = False
-        self.user_mention = ""
 
-    def progress_hook(self, d):
-        """Hook pour suivre la progression du téléchargement"""
-        if d['status'] == 'downloading':
-            try:
-                # Extraire les informations de progression
-                downloaded = d.get('downloaded_bytes', 0)
-                total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
-                
-                if total:
-                    percent = int(downloaded / total * 100)
-                    prefix = self.user_mention if self.send_to_channel else ""
-                    # Créer une barre de progression visuelle
-                    bar_length = 20
-                    filled = int(bar_length * downloaded / total)
-                    bar = '█' * filled + '░' * (bar_length - filled)
+    def create_progress_hook(self, progress_msg, send_to_channel, user_mention):
+        """Crée un hook de progression unique pour chaque téléchargement"""
+        async def update_progress(content):
+            """Met à jour le message de progression"""
+            if progress_msg:
+                try:
+                    await progress_msg.edit(content=content)
+                except Exception:
+                    pass  # Ignore les erreurs de rate limit
+        
+        def progress_hook(d):
+            """Hook pour suivre la progression du téléchargement"""
+            if d['status'] == 'downloading':
+                try:
+                    # Extraire les informations de progression
+                    downloaded = d.get('downloaded_bytes', 0)
+                    total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
                     
-                    # Mettre à jour le message de progression de manière asynchrone
-                    asyncio.create_task(self._update_progress(
-                        f"{prefix}⏳ Téléchargement : {percent}% [{bar}]"
-                    ))
-            except Exception as e:
-                logging.warning(f"⚠️ Erreur dans progress_hook: {e}")
-    
-    async def _update_progress(self, content):
-        """Met à jour le message de progression"""
-        if self.progress_msg:
-            try:
-                await self.progress_msg.edit(content=content)
-            except Exception:
-                pass  # Ignore les erreurs de rate limit
+                    if total:
+                        percent = int(downloaded / total * 100)
+                        prefix = user_mention if send_to_channel else ""
+                        
+                        # Mettre à jour le message de progression de manière asynchrone
+                        asyncio.create_task(update_progress(
+                            f"{prefix}⏳ Téléchargement : {percent}%"
+                        ))
+                except Exception as e:
+                    logging.warning(f"⚠️ Erreur dans progress_hook: {e}")
+        
+        return progress_hook
 
     @app_commands.command(
         name="instagram",
@@ -83,6 +80,11 @@ class Instagram(commands.Cog):
         
         # Utilisation d'un sémaphore pour limiter les téléchargements simultanés
         async with self.semaphore:
+            # Variables locales pour ce téléchargement spécifique
+            progress_msg = None
+            send_to_channel = False
+            user_mention = ""
+            
             try:
                 # Vérifier que c'est bien un lien Instagram
                 if "instagram.com" not in url:
@@ -95,15 +97,6 @@ class Instagram(commands.Cog):
                 # Configuration yt-dlp
                 temp_dir = tempfile.gettempdir()
                 output_path = os.path.join(temp_dir, "instagram_video_%(id)s.%(ext)s")
-                
-                ydl_opts = {
-                    'format': 'best',
-                    'outtmpl': output_path,
-                    'quiet': True,
-                    'no_warnings': True,
-                    'extract_flat': False,
-                    'progress_hooks': [self.progress_hook],
-                }
 
                 # Message de disclaimer et barre de progression
                 try:
@@ -114,9 +107,9 @@ class Instagram(commands.Cog):
                         "• Le bot est fourni tel quel, sans garantie\n"
                         "• Vous utilisez ce service de votre plein gré et à vos propres risques"
                     )
-                    self.progress_msg = await interaction.user.send("⏳ Téléchargement de la vidéo en cours : 0%")
-                    self.send_to_channel = False
-                    self.user_mention = ""
+                    progress_msg = await interaction.user.send("⏳ Téléchargement de la vidéo en cours : 0%")
+                    send_to_channel = False
+                    user_mention = ""
                 except:
                     # Si impossible d'envoyer en DM, on enverra sur le salon
                     await interaction.followup.send(
@@ -126,11 +119,23 @@ class Instagram(commands.Cog):
                         "• Le bot est fourni tel quel, sans garantie\n"
                         "• Vous utilisez ce service de votre plein gré et à vos propres risques"
                     )
-                    self.progress_msg = await interaction.followup.send(
+                    progress_msg = await interaction.followup.send(
                         f"{interaction.user.mention} ⏳ Téléchargement de la vidéo en cours : 0%", wait=True
                     )
-                    self.send_to_channel = True
-                    self.user_mention = f"{interaction.user.mention} "
+                    send_to_channel = True
+                    user_mention = f"{interaction.user.mention} "
+                
+                # Créer un progress_hook unique pour ce téléchargement
+                progress_hook = self.create_progress_hook(progress_msg, send_to_channel, user_mention)
+                
+                ydl_opts = {
+                    'format': 'best',
+                    'outtmpl': output_path,
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extract_flat': False,
+                    'progress_hooks': [progress_hook],
+                }
 
                 # Télécharger la vidéo
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -146,20 +151,20 @@ class Instagram(commands.Cog):
                     size_mb = file_size / (1024 * 1024)
                     os.remove(video_file)
                     
-                    if self.send_to_channel:
+                    if send_to_channel:
                         await interaction.followup.send(
                             f"{interaction.user.mention} ❌ La vidéo est trop volumineuse ({size_mb:.2f} MB). "
                             f"La limite est de 8 MB."
                         )
-                        if self.progress_msg:
-                            await self.progress_msg.delete()
+                        if progress_msg:
+                            await progress_msg.delete()
                     else:
                         await interaction.user.send(
                             f"❌ La vidéo est trop volumineuse ({size_mb:.2f} MB). "
                             f"La limite est de 8 MB."
                         )
-                        if self.progress_msg:
-                            await self.progress_msg.edit(content="❌ Vidéo trop volumineuse.")
+                        if progress_msg:
+                            await progress_msg.edit(content="❌ Vidéo trop volumineuse.")
                     return
 
                 # Envoyer la vidéo
@@ -168,13 +173,13 @@ class Instagram(commands.Cog):
                     with open(video_file, 'rb') as f:
                         discord_file = discord.File(f, filename=f"{video_title[:50]}.mp4")
                         
-                        if self.send_to_channel:
+                        if send_to_channel:
                             await interaction.followup.send(
                                 content=f"{interaction.user.mention} ✅ Téléchargement terminé :",
                                 file=discord_file
                             )
-                            if self.progress_msg:
-                                await self.progress_msg.delete()
+                            if progress_msg:
+                                await progress_msg.delete()
                             logging.info("✅ Vidéo Instagram envoyée sur le salon")
                             video_sent_successfully = True
                         else:
@@ -192,14 +197,14 @@ class Instagram(commands.Cog):
                         with open(video_file, 'rb') as f:
                             discord_file = discord.File(f, filename=f"{video_title[:50]}.mp4")
                             
-                            if self.send_to_channel:
+                            if send_to_channel:
                                 # Si échec sur le salon, essaie en DM
                                 await interaction.user.send(
                                     content="✅ Téléchargement terminé :",
                                     file=discord_file
                                 )
-                                if self.progress_msg:
-                                    await self.progress_msg.delete()
+                                if progress_msg:
+                                    await progress_msg.delete()
                                 logging.info("✅ Vidéo Instagram envoyée en DM")
                                 video_sent_successfully = True
                             else:
@@ -208,16 +213,16 @@ class Instagram(commands.Cog):
                                     content=f"{interaction.user.mention} ✅ Téléchargement terminé :",
                                     file=discord_file
                                 )
-                                if self.progress_msg:
-                                    await self.progress_msg.edit(
+                                if progress_msg:
+                                    await progress_msg.edit(
                                         content="✅ Vidéo envoyée sur le salon (DM bloqués)"
                                     )
                                 logging.info("✅ Vidéo Instagram envoyée sur le salon")
                                 video_sent_successfully = True
                     except Exception as e2:
                         error_msg = f"❌ Impossible d'envoyer la vidéo : {str(e2)}"
-                        if self.progress_msg:
-                            await self.progress_msg.edit(content=f"{self.user_mention}{error_msg}")
+                        if progress_msg:
+                            await progress_msg.edit(content=f"{user_mention}{error_msg}")
                         logging.error(f"❌ Échec complet de l'envoi : {e2}")
 
                 # Enregistrer les statistiques si l'envoi a réussi
