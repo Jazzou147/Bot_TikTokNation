@@ -15,10 +15,19 @@ from utils.tiktok_tracker import tiktok_tracker
 
 
 class TikTokAuto(commands.Cog):
+    TIKTOK_CHANNEL_NAME = "🔥┃tiktok-posts"
+
     def __init__(self, bot):
         self.bot = bot
         self.check_interval = 300  # 5 minutes
         self.checking = False
+
+    def get_tiktok_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
+        """Trouve le canal TikTok par son nom"""
+        for channel in guild.text_channels:
+            if channel.name == self.TIKTOK_CHANNEL_NAME:
+                return channel
+        return None
 
     async def cog_load(self):
         """Démarrage de la tâche de vérification"""
@@ -56,14 +65,12 @@ class TikTokAuto(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        # Vérifier si le canal de notification est configuré
-        notification_channel = tiktok_tracker.get_notification_channel(
-            interaction.guild_id
-        )
-        if not notification_channel:
+        # Vérifier si le canal TikTok existe
+        tiktok_channel = self.get_tiktok_channel(interaction.guild)
+        if not tiktok_channel:
             embed = discord.Embed(
-                title="⚠️ Canal non configuré",
-                description="Un administrateur doit d'abord configurer le canal de notification avec `/settiktokchannel`",
+                title="⚠️ Canal introuvable",
+                description=f"Le canal `{self.TIKTOK_CHANNEL_NAME}` n'existe pas sur ce serveur.\n\nCrée ce canal pour pouvoir lier ton compte TikTok.",
                 color=discord.Color.orange(),
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -100,7 +107,7 @@ class TikTokAuto(commands.Cog):
             embed = discord.Embed(
                 title="✅ Compte TikTok lié",
                 description=f"Ton compte `@{username}` a été lié avec succès !\n\n"
-                f"Tes nouvelles vidéos seront automatiquement partagées dans <#{notification_channel}>",
+                f"Tes nouvelles vidéos seront automatiquement partagées dans {tiktok_channel.mention}",
                 color=discord.Color.green(),
             )
         else:
@@ -170,11 +177,16 @@ class TikTokAuto(commands.Cog):
                 color=discord.Color.orange(),
             )
         else:
-            channel_id = tiktok_tracker.get_notification_channel(interaction.guild_id)
+            tiktok_channel = self.get_tiktok_channel(interaction.guild)
+            channel_mention = (
+                tiktok_channel.mention
+                if tiktok_channel
+                else f"`{self.TIKTOK_CHANNEL_NAME}`"
+            )
             embed = discord.Embed(
                 title="🎵 Ton compte TikTok",
                 description=f"**Compte lié :** `@{account}`\n"
-                f"**Canal de notification :** <#{channel_id}>",
+                f"**Canal de notification :** {channel_mention}",
                 color=discord.Color.from_rgb(0, 242, 234),
             )
             embed.add_field(
@@ -184,40 +196,11 @@ class TikTokAuto(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="settiktokchannel",
-        description="Configure le canal pour les nouvelles vidéos TikTok",
-    )
-    @app_commands.describe(channel="Le canal où poster les nouvelles vidéos")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def set_tiktok_channel(
-        self, interaction: discord.Interaction, channel: discord.TextChannel
-    ):
-        """Configure le canal de notification (Admin seulement)"""
-
-        if not interaction.guild or not interaction.guild_id:
-            await interaction.response.send_message(
-                "❌ Cette commande doit être utilisée dans un serveur.", ephemeral=True
-            )
-            return
-
-        tiktok_tracker.set_notification_channel(interaction.guild_id, channel.id)
-
-        embed = discord.Embed(
-            title="✅ Canal configuré",
-            description=f"Les nouvelles vidéos TikTok seront postées dans {channel.mention}",
-            color=discord.Color.green(),
-        )
-        await interaction.response.send_message(embed=embed)
-        logging.info(
-            f"📺 Canal TikTok configuré: #{channel.name} sur {interaction.guild.name}"
-        )
-
-    @app_commands.command(
         name="linkedtiktoks", description="Liste tous les comptes TikTok liés"
     )
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.checks.has_permissions(manage_messages=True)
     async def linked_tiktoks(self, interaction: discord.Interaction):
-        """Liste tous les comptes liés (Admin seulement)"""
+        """Liste tous les comptes liés (Modérateurs et admins)"""
 
         if not interaction.guild or not interaction.guild_id:
             await interaction.response.send_message(
@@ -257,11 +240,9 @@ class TikTokAuto(commands.Cog):
                     inline=True,
                 )
 
-        channel_id = tiktok_tracker.get_notification_channel(interaction.guild_id)
-        if channel_id:
-            channel_obj = interaction.guild.get_channel(channel_id)
-            if channel_obj:
-                embed.set_footer(text=f"Canal: #{channel_obj.name}")
+        tiktok_channel = self.get_tiktok_channel(interaction.guild)
+        if tiktok_channel:
+            embed.set_footer(text=f"Canal: #{tiktok_channel.name}")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -318,6 +299,15 @@ class TikTokAuto(commands.Cog):
     async def check_account_for_new_video(self, account: dict):
         """Vérifie si un compte a une nouvelle vidéo"""
         username = account["tiktok_username"]
+        guild = self.bot.get_guild(account["guild_id"])
+        if not guild:
+            return
+
+        # Trouver le canal TikTok
+        tiktok_channel = self.get_tiktok_channel(guild)
+        if not tiktok_channel:
+            return
+
         url = f"https://www.tiktok.com/@{username}"
 
         ydl_opts = {
@@ -349,7 +339,7 @@ class TikTokAuto(commands.Cog):
 
                 # Si c'est une nouvelle vidéo
                 if video_id != account["last_video_id"]:
-                    await self.post_new_video(account, latest_video)
+                    await self.post_new_video(account, latest_video, tiktok_channel)
                     tiktok_tracker.update_last_video(
                         account["guild_id"], account["user_id"], video_id
                     )
@@ -357,14 +347,12 @@ class TikTokAuto(commands.Cog):
         except Exception as e:
             logging.error(f"❌ Erreur lors de la vérification de @{username}: {e}")
 
-    async def post_new_video(self, account: dict, video_info: dict):
+    async def post_new_video(
+        self, account: dict, video_info: dict, channel: discord.TextChannel
+    ):
         """Poste une nouvelle vidéo dans le canal Discord"""
         guild = self.bot.get_guild(account["guild_id"])
         if not guild:
-            return
-
-        channel = guild.get_channel(account["channel_id"])
-        if not channel:
             return
 
         user = guild.get_member(account["user_id"])

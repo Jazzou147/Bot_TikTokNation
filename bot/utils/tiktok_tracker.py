@@ -151,17 +151,12 @@ class TikTokTracker:
         """Récupère tous les comptes à surveiller"""
         accounts = []
         for guild_id, guild_data in self.data["guilds"].items():
-            channel_id = guild_data.get("notification_channel")
-            if not channel_id:
-                continue
-
             for user_id, user_data in guild_data["linked_users"].items():
                 accounts.append(
                     {
                         "guild_id": int(guild_id),
                         "user_id": int(user_id),
                         "tiktok_username": user_data["tiktok_username"],
-                        "channel_id": channel_id,
                         "last_video_id": user_data.get("last_video_id"),
                         "last_checked": user_data.get("last_checked"),
                     }
