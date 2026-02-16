@@ -6,6 +6,7 @@ import sys
 import os
 import yt_dlp
 import asyncio
+import random
 from datetime import datetime
 
 # Ajouter le dossier parent au path pour importer utils
@@ -247,7 +248,8 @@ class TikTokAuto(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="checktiktok", description="Force une vérification immédiate de ton compte TikTok"
+        name="checktiktok",
+        description="Force une vérification immédiate de ton compte TikTok",
     )
     async def check_tiktok(self, interaction: discord.Interaction):
         """Force une vérification manuelle des nouvelles vidéos"""
@@ -288,7 +290,10 @@ class TikTokAuto(commands.Cog):
         accounts = tiktok_tracker.get_all_tracked_accounts()
         user_account = None
         for acc in accounts:
-            if acc["guild_id"] == interaction.guild_id and acc["user_id"] == interaction.user.id:
+            if (
+                acc["guild_id"] == interaction.guild_id
+                and acc["user_id"] == interaction.user.id
+            ):
                 user_account = acc
                 break
 
@@ -360,7 +365,9 @@ class TikTokAuto(commands.Cog):
                     )
                 else:
                     # Nouvelle vidéo détectée !
-                    await self.post_new_video(user_account, latest_video, tiktok_channel)
+                    await self.post_new_video(
+                        user_account, latest_video, tiktok_channel
+                    )
                     tiktok_tracker.update_last_video(
                         interaction.guild_id, interaction.user.id, video_id
                     )
@@ -502,12 +509,17 @@ class TikTokAuto(commands.Cog):
         )
         title = video_info.get("title", "Nouvelle vidéo TikTok")
 
+        # Générer une couleur aléatoire
+        random_color = discord.Color.from_rgb(
+            random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+        )
+
         embed = discord.Embed(
-            title="🎵 Nouvelle vidéo TikTok !",
+            title="🔥 Nouvelle vidéo TikTok !",
             description=f"**{user.mention}** a publié une nouvelle vidéo !\n\n"
             f"**Titre :** {title[:100]}...\n"
             f"**Lien :** [Voir la vidéo]({video_url})",
-            color=discord.Color.from_rgb(0, 242, 234),
+            color=random_color,
             url=video_url,
             timestamp=datetime.now(),
         )
