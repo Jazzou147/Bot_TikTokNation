@@ -246,6 +246,143 @@ class TikTokAuto(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(
+        name="checktiktok", description="Force une vérification immédiate de ton compte TikTok"
+    )
+    async def check_tiktok(self, interaction: discord.Interaction):
+        """Force une vérification manuelle des nouvelles vidéos"""
+
+        if not interaction.guild or not interaction.guild_id:
+            await interaction.response.send_message(
+                "❌ Cette commande doit être utilisée dans un serveur.", ephemeral=True
+            )
+            return
+
+        # Vérifier que le compte est lié
+        account_username = tiktok_tracker.get_linked_account(
+            interaction.guild_id, interaction.user.id
+        )
+        if not account_username:
+            embed = discord.Embed(
+                title="⚠️ Aucun compte lié",
+                description="Tu dois d'abord lier ton compte avec `/linktiktok`",
+                color=discord.Color.orange(),
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        # Vérifier que le canal existe
+        tiktok_channel = self.get_tiktok_channel(interaction.guild)
+        if not tiktok_channel:
+            embed = discord.Embed(
+                title="⚠️ Canal introuvable",
+                description=f"Le canal `{self.TIKTOK_CHANNEL_NAME}` n'existe pas sur ce serveur.",
+                color=discord.Color.orange(),
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Récupérer les infos du compte
+        accounts = tiktok_tracker.get_all_tracked_accounts()
+        user_account = None
+        for acc in accounts:
+            if acc["guild_id"] == interaction.guild_id and acc["user_id"] == interaction.user.id:
+                user_account = acc
+                break
+
+        if not user_account:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description="Impossible de trouver ton compte dans le système.",
+                color=discord.Color.red(),
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        # Vérifier manuellement
+        try:
+            url = f"https://www.tiktok.com/@{account_username}"
+            ydl_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "extract_flat": True,
+                "playlist_items": "1",
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = await asyncio.to_thread(ydl.extract_info, url, download=False)
+
+                if not info or "entries" not in info or not info["entries"]:
+                    embed = discord.Embed(
+                        title="⚠️ Aucune vidéo trouvée",
+                        description=f"Le compte `@{account_username}` n'a pas de vidéos publiques ou est inaccessible.",
+                        color=discord.Color.orange(),
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+
+                latest_video = info["entries"][0]
+                video_id = latest_video.get("id")
+                last_known_id = user_account.get("last_video_id")
+
+                if not video_id:
+                    embed = discord.Embed(
+                        title="❌ Erreur",
+                        description="Impossible de récupérer l'ID de la vidéo.",
+                        color=discord.Color.red(),
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+
+                # Comparer les IDs
+                if last_known_id is None:
+                    # Première vérification
+                    tiktok_tracker.update_last_video(
+                        interaction.guild_id, interaction.user.id, video_id
+                    )
+                    embed = discord.Embed(
+                        title="✅ Première vérification",
+                        description=f"Ton compte `@{account_username}` est maintenant surveillé !\n\n"
+                        f"**Dernière vidéo enregistrée :** `{video_id}`\n\n"
+                        f"⚠️ Cette vidéo ne sera pas notifiée. Seules les **nouvelles** vidéos après celle-ci seront partagées.",
+                        color=discord.Color.blue(),
+                    )
+                elif video_id == last_known_id:
+                    # Pas de nouvelle vidéo
+                    embed = discord.Embed(
+                        title="ℹ️ Aucune nouvelle vidéo",
+                        description=f"Aucune nouvelle vidéo détectée pour `@{account_username}`\n\n"
+                        f"**Dernière vidéo connue :** `{last_known_id}`\n"
+                        f"**Vidéo actuelle :** `{video_id}`",
+                        color=discord.Color.blue(),
+                    )
+                else:
+                    # Nouvelle vidéo détectée !
+                    await self.post_new_video(user_account, latest_video, tiktok_channel)
+                    tiktok_tracker.update_last_video(
+                        interaction.guild_id, interaction.user.id, video_id
+                    )
+                    embed = discord.Embed(
+                        title="🎉 Nouvelle vidéo détectée !",
+                        description=f"Une nouvelle vidéo a été trouvée et postée dans {tiktok_channel.mention}\n\n"
+                        f"**Ancienne vidéo :** `{last_known_id}`\n"
+                        f"**Nouvelle vidéo :** `{video_id}`",
+                        color=discord.Color.green(),
+                    )
+
+                await interaction.followup.send(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            logging.error(f"❌ Erreur lors de la vérification manuelle: {e}")
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description=f"Une erreur s'est produite lors de la vérification :\n```{str(e)}```",
+                color=discord.Color.red(),
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
     async def verify_tiktok_account(self, username: str) -> bool:
         """Vérifie qu'un compte TikTok existe"""
         url = f"https://www.tiktok.com/@{username}"
