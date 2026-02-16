@@ -7,19 +7,21 @@ import logging
 LOCKABLE_CHANNELS = {
     "▶️┃gen-instagram": "instagram",
     "🎨┃gen-pinterest": "pinterest",
+    "🔥┃tiktok-posts": "tiktok",
     # Ajoutez d'autres salons ici si nécessaire
     # "emoji┃nom-du-salon": "identifiant",
 }
+
 
 class LockChannel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         # Liste des salons verrouillés (stockage en mémoire)
         self.locked_channels = set()
-        
+
         # Créer dynamiquement les commandes pour chaque salon
         self._create_lock_commands()
-    
+
     def _create_lock_commands(self):
         """Crée dynamiquement les commandes lock/unlock pour chaque salon dans LOCKABLE_CHANNELS"""
         for channel_name, channel_id in LOCKABLE_CHANNELS.items():
@@ -27,15 +29,15 @@ class LockChannel(commands.Cog):
             self._add_lock_command(channel_name, channel_id)
             # Créer la commande unlock
             self._add_unlock_command(channel_name, channel_id)
-    
+
     def _add_lock_command(self, channel_name: str, channel_id: str):
         """Ajoute une commande lock pour un salon spécifique"""
         command_name = f"lock_{channel_id}"
         description = f"Verrouille le salon {channel_name} - seules les commandes du bot sont autorisées"
-        
+
         async def lock_command(interaction: discord.Interaction):
             await self._lock_channel(interaction, channel_name)
-        
+
         # Créer la commande avec les décorateurs appropriés
         cmd = app_commands.Command(
             name=command_name,
@@ -43,18 +45,18 @@ class LockChannel(commands.Cog):
             callback=lock_command,
         )
         cmd.default_permissions = discord.Permissions(manage_channels=True)
-        
+
         # Ajouter au tree
         self.bot.tree.add_command(cmd)
-    
+
     def _add_unlock_command(self, channel_name: str, channel_id: str):
         """Ajoute une commande unlock pour un salon spécifique"""
         command_name = f"unlock_{channel_id}"
         description = f"Déverrouille le salon {channel_name} - les messages sont à nouveau autorisés"
-        
+
         async def unlock_command(interaction: discord.Interaction):
             await self._unlock_channel(interaction, channel_name)
-        
+
         # Créer la commande avec les décorateurs appropriés
         cmd = app_commands.Command(
             name=command_name,
@@ -62,7 +64,7 @@ class LockChannel(commands.Cog):
             callback=unlock_command,
         )
         cmd.default_permissions = discord.Permissions(manage_channels=True)
-        
+
         # Ajouter au tree
         self.bot.tree.add_command(cmd)
 
@@ -81,7 +83,7 @@ class LockChannel(commands.Cog):
             return
 
         channel_id = interaction.channel.id
-        
+
         if channel_id in self.locked_channels:
             await interaction.response.send_message(
                 "⚠️ Ce salon est déjà verrouillé.",
@@ -96,7 +98,9 @@ class LockChannel(commands.Cog):
         )
         logging.info(f"🔒 Salon {channel_name} verrouillé par {interaction.user}")
 
-    async def _unlock_channel(self, interaction: discord.Interaction, channel_name: str):
+    async def _unlock_channel(
+        self, interaction: discord.Interaction, channel_name: str
+    ):
         """Fonction générique pour déverrouiller un salon"""
         # Vérifier que c'est le bon salon
         if (
@@ -111,7 +115,7 @@ class LockChannel(commands.Cog):
             return
 
         channel_id = interaction.channel.id
-        
+
         if channel_id not in self.locked_channels:
             await interaction.response.send_message(
                 "⚠️ Ce salon n'est pas verrouillé.",
@@ -137,7 +141,10 @@ class LockChannel(commands.Cog):
             return
 
         # Vérifier que c'est bien un salon verrouillable
-        if not isinstance(message.channel, discord.TextChannel) or message.channel.name not in LOCKABLE_CHANNELS:
+        if (
+            not isinstance(message.channel, discord.TextChannel)
+            or message.channel.name not in LOCKABLE_CHANNELS
+        ):
             return
 
         # Supprimer le message et notifier l'utilisateur
@@ -145,13 +152,16 @@ class LockChannel(commands.Cog):
             await message.delete()
             await message.channel.send(
                 f"❌ {message.author.mention}, ce salon est verrouillé. Utilisez uniquement les commandes du bot.",
-                delete_after=5
+                delete_after=5,
             )
-            logging.info(f"🗑️ Message de {message.author} supprimé dans le salon verrouillé {message.channel.name}")
+            logging.info(
+                f"🗑️ Message de {message.author} supprimé dans le salon verrouillé {message.channel.name}"
+            )
         except discord.Forbidden:
             logging.error("❌ Permission insuffisante pour supprimer le message")
         except Exception as e:
             logging.error(f"❌ Erreur lors de la suppression du message: {e}")
+
 
 async def setup(bot):
     await bot.add_cog(LockChannel(bot))
