@@ -108,7 +108,7 @@ class TikTokAuto(commands.Cog):
             embed = discord.Embed(
                 title="✅ Compte TikTok lié",
                 description=f"Ton compte `@{username}` a été lié avec succès !\n\n"
-                f"Tes nouvelles vidéos seront automatiquement partagées dans {tiktok_channel.mention}",
+                f"Tes nouvelles vidéos et lives seront automatiquement partagés dans {tiktok_channel.mention}",
                 color=discord.Color.green(),
             )
         else:
@@ -118,7 +118,7 @@ class TikTokAuto(commands.Cog):
                 color=discord.Color.green(),
             )
 
-        embed.set_footer(text="Les vidéos sont vérifiées toutes les 5 minutes")
+        embed.set_footer(text="Vérifications toutes les 5 minutes (vidéos + lives)")
         await interaction.followup.send(embed=embed, ephemeral=True)
         logging.info(f"🔗 {interaction.user} a lié son compte TikTok: @{username}")
 
@@ -197,8 +197,10 @@ class TikTokAuto(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="linkedtiktoks", description="Liste tous les comptes TikTok liés"
+        name="linkedtiktoks",
+        description="Liste tous les comptes TikTok liés",
     )
+    @app_commands.default_permissions(manage_messages=True)
     @app_commands.checks.has_permissions(manage_messages=True)
     async def linked_tiktoks(self, interaction: discord.Interaction):
         """Liste tous les comptes liés (Modérateurs et admins)"""
@@ -247,149 +249,6 @@ class TikTokAuto(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(
-        name="checktiktok",
-        description="Force une vérification immédiate de ton compte TikTok",
-    )
-    async def check_tiktok(self, interaction: discord.Interaction):
-        """Force une vérification manuelle des nouvelles vidéos"""
-
-        if not interaction.guild or not interaction.guild_id:
-            await interaction.response.send_message(
-                "❌ Cette commande doit être utilisée dans un serveur.", ephemeral=True
-            )
-            return
-
-        # Vérifier que le compte est lié
-        account_username = tiktok_tracker.get_linked_account(
-            interaction.guild_id, interaction.user.id
-        )
-        if not account_username:
-            embed = discord.Embed(
-                title="⚠️ Aucun compte lié",
-                description="Tu dois d'abord lier ton compte avec `/linktiktok`",
-                color=discord.Color.orange(),
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-
-        # Vérifier que le canal existe
-        tiktok_channel = self.get_tiktok_channel(interaction.guild)
-        if not tiktok_channel:
-            embed = discord.Embed(
-                title="⚠️ Canal introuvable",
-                description=f"Le canal `{self.TIKTOK_CHANNEL_NAME}` n'existe pas sur ce serveur.",
-                color=discord.Color.orange(),
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-
-        await interaction.response.defer(ephemeral=True)
-
-        # Récupérer les infos du compte
-        accounts = tiktok_tracker.get_all_tracked_accounts()
-        user_account = None
-        for acc in accounts:
-            if (
-                acc["guild_id"] == interaction.guild_id
-                and acc["user_id"] == interaction.user.id
-            ):
-                user_account = acc
-                break
-
-        if not user_account:
-            embed = discord.Embed(
-                title="❌ Erreur",
-                description="Impossible de trouver ton compte dans le système.",
-                color=discord.Color.red(),
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            return
-
-        # Vérifier manuellement
-        try:
-            url = f"https://www.tiktok.com/@{account_username}"
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "extract_flat": True,
-                "playlist_items": "1",
-            }
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = await asyncio.to_thread(ydl.extract_info, url, download=False)
-
-                if not info or "entries" not in info or not info["entries"]:
-                    embed = discord.Embed(
-                        title="⚠️ Aucune vidéo trouvée",
-                        description=f"Le compte `@{account_username}` n'a pas de vidéos publiques ou est inaccessible.",
-                        color=discord.Color.orange(),
-                    )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                    return
-
-                latest_video = info["entries"][0]
-                video_id = latest_video.get("id")
-                last_known_id = user_account.get("last_video_id")
-
-                if not video_id:
-                    embed = discord.Embed(
-                        title="❌ Erreur",
-                        description="Impossible de récupérer l'ID de la vidéo.",
-                        color=discord.Color.red(),
-                    )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                    return
-
-                # Comparer les IDs
-                if last_known_id is None:
-                    # Première vérification
-                    tiktok_tracker.update_last_video(
-                        interaction.guild_id, interaction.user.id, video_id
-                    )
-                    embed = discord.Embed(
-                        title="✅ Première vérification",
-                        description=f"Ton compte `@{account_username}` est maintenant surveillé !\n\n"
-                        f"**Dernière vidéo enregistrée :** `{video_id}`\n\n"
-                        f"⚠️ Cette vidéo ne sera pas notifiée. Seules les **nouvelles** vidéos après celle-ci seront partagées.",
-                        color=discord.Color.blue(),
-                    )
-                elif video_id == last_known_id:
-                    # Pas de nouvelle vidéo
-                    embed = discord.Embed(
-                        title="ℹ️ Aucune nouvelle vidéo",
-                        description=f"Aucune nouvelle vidéo détectée pour `@{account_username}`\n\n"
-                        f"**Dernière vidéo connue :** `{last_known_id}`\n"
-                        f"**Vidéo actuelle :** `{video_id}`",
-                        color=discord.Color.blue(),
-                    )
-                else:
-                    # Nouvelle vidéo détectée !
-                    await self.post_new_video(
-                        user_account, latest_video, tiktok_channel
-                    )
-                    tiktok_tracker.update_last_video(
-                        interaction.guild_id, interaction.user.id, video_id
-                    )
-                    embed = discord.Embed(
-                        title="🎉 Nouvelle vidéo détectée !",
-                        description=f"Une nouvelle vidéo a été trouvée et postée dans {tiktok_channel.mention}\n\n"
-                        f"**Ancienne vidéo :** `{last_known_id}`\n"
-                        f"**Nouvelle vidéo :** `{video_id}`",
-                        color=discord.Color.green(),
-                    )
-
-                await interaction.followup.send(embed=embed, ephemeral=True)
-
-        except Exception as e:
-            logging.error(f"❌ Erreur lors de la vérification manuelle: {e}")
-            embed = discord.Embed(
-                title="❌ Erreur",
-                description=f"Une erreur s'est produite lors de la vérification :\n```{str(e)}```",
-                color=discord.Color.red(),
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
     async def verify_tiktok_account(self, username: str) -> bool:
         """Vérifie qu'un compte TikTok existe"""
         url = f"https://www.tiktok.com/@{username}"
@@ -402,7 +261,7 @@ class TikTokAuto(commands.Cog):
         }
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore
                 info = await asyncio.to_thread(ydl.extract_info, url, download=False)
                 return info is not None
         except Exception:
@@ -410,7 +269,7 @@ class TikTokAuto(commands.Cog):
 
     @tasks.loop(seconds=300)  # Toutes les 5 minutes
     async def check_new_videos(self):
-        """Vérifie les nouvelles vidéos des comptes liés"""
+        """Vérifie les nouvelles vidéos et lives des comptes liés"""
         if self.checking:
             return
 
@@ -441,7 +300,7 @@ class TikTokAuto(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def check_account_for_new_video(self, account: dict):
-        """Vérifie si un compte a une nouvelle vidéo"""
+        """Vérifie si un compte a une nouvelle vidéo ou un live actif"""
         username = account["tiktok_username"]
         guild = self.bot.get_guild(account["guild_id"])
         if not guild:
@@ -462,10 +321,38 @@ class TikTokAuto(commands.Cog):
         }
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore
                 info = await asyncio.to_thread(ydl.extract_info, url, download=False)
 
-                if not info or "entries" not in info or not info["entries"]:
+                if not info:
+                    return
+
+                # Vérifier si c'est un live
+                is_live = info.get("is_live", False)
+
+                if is_live:
+                    # C'est un live !
+                    live_id = info.get("id") or info.get("display_id")
+
+                    # Vérifier si on a déjà notifié ce live
+                    if not account.get("is_live", False) or live_id != account.get(
+                        "last_live_id"
+                    ):
+                        await self.post_live_notification(account, info, tiktok_channel)  # type: ignore
+                        if live_id:
+                            tiktok_tracker.update_live_status(
+                                account["guild_id"], account["user_id"], True, live_id  # type: ignore
+                            )
+                    return
+                else:
+                    # Si l'utilisateur était en live et ne l'est plus, mettre à jour le statut
+                    if account.get("is_live", False):
+                        tiktok_tracker.update_live_status(
+                            account["guild_id"], account["user_id"], False
+                        )
+
+                # Vérifier les vidéos normales
+                if "entries" not in info or not info["entries"]:
                     return
 
                 latest_video = info["entries"][0]
@@ -490,6 +377,49 @@ class TikTokAuto(commands.Cog):
 
         except Exception as e:
             logging.error(f"❌ Erreur lors de la vérification de @{username}: {e}")
+
+    async def post_live_notification(
+        self, account: dict, live_info: dict, channel: discord.TextChannel
+    ):
+        """Poste une notification de live dans le canal Discord"""
+        guild = self.bot.get_guild(account["guild_id"])
+        if not guild:
+            return
+
+        user = guild.get_member(account["user_id"])
+        if not user:
+            return
+
+        live_url = (
+            live_info.get("url")
+            or f"https://www.tiktok.com/@{account['tiktok_username']}/live"
+        )
+        title = live_info.get("title", "Live TikTok")
+
+        embed = discord.Embed(
+            title="🔴 LIVE EN COURS !",
+            description=f"**{user.mention}** est en direct sur TikTok !\n\n"
+            f"**Titre :** {title[:100]}\n"
+            f"**Lien :** [Rejoindre le live]({live_url})",
+            color=discord.Color.red(),
+            url=live_url,
+            timestamp=datetime.now(),
+        )
+
+        embed.set_author(
+            name=f"@{account['tiktok_username']}", icon_url=user.display_avatar.url
+        )
+
+        if live_info.get("thumbnail"):
+            embed.set_thumbnail(url=live_info["thumbnail"])
+
+        embed.set_footer(text="TikTok Live | Rejoins vite !")
+
+        try:
+            await channel.send(f"@everyone {user.mention} est en live !", embed=embed)
+            logging.info(f"🔴 Live détecté pour @{account['tiktok_username']}")
+        except Exception as e:
+            logging.error(f"❌ Erreur lors de la notification de live: {e}")
 
     async def post_new_video(
         self, account: dict, video_info: dict, channel: discord.TextChannel
@@ -542,3 +472,4 @@ class TikTokAuto(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(TikTokAuto(bot))
+    logging.info("TikTokAuto cog chargé avec succès.")

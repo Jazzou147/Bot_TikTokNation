@@ -56,6 +56,8 @@ class TikTokTracker:
             "linked_at": datetime.now().isoformat(),
             "last_checked": None,
             "last_video_id": None,
+            "is_live": False,
+            "last_live_id": None,
         }
 
         # Index global des utilisateurs
@@ -147,6 +149,29 @@ class TikTokTracker:
             ] = datetime.now().isoformat()
             self.save_data()
 
+    def update_live_status(
+        self, guild_id: int, user_id: int, is_live: bool, live_id: Optional[str] = None
+    ):
+        """Met à jour le statut de live d'un utilisateur"""
+        guild_str = str(guild_id)
+        user_str = str(user_id)
+
+        if (
+            guild_str in self.data["guilds"]
+            and user_str in self.data["guilds"][guild_str]["linked_users"]
+        ):
+            self.data["guilds"][guild_str]["linked_users"][user_str][
+                "is_live"
+            ] = is_live
+            if live_id:
+                self.data["guilds"][guild_str]["linked_users"][user_str][
+                    "last_live_id"
+                ] = live_id
+            self.data["guilds"][guild_str]["linked_users"][user_str][
+                "last_checked"
+            ] = datetime.now().isoformat()
+            self.save_data()
+
     def get_all_tracked_accounts(self) -> List[Dict]:
         """Récupère tous les comptes à surveiller"""
         accounts = []
@@ -159,6 +184,8 @@ class TikTokTracker:
                         "tiktok_username": user_data["tiktok_username"],
                         "last_video_id": user_data.get("last_video_id"),
                         "last_checked": user_data.get("last_checked"),
+                        "is_live": user_data.get("is_live", False),
+                        "last_live_id": user_data.get("last_live_id"),
                     }
                 )
 
